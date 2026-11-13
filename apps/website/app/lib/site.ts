@@ -4,7 +4,7 @@ export const site = {
   hotline: '2322',
   emergency: '2322',
   phone: '+201274666618',
-  whatsapp: '+201274666618', // international format, digits only, for wa.me links
+  whatsapp: '+201149364443', // international format, digits only, for wa.me links
   email: 'info@abchospitaleg.com',
   address: {
     ar: '15 شارع عمرو، من شارع سوريا، المهندسين',
