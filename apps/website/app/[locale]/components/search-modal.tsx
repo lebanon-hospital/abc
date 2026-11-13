@@ -1,27 +1,19 @@
 'use client'
 
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowLeft, ArrowRight, Search, X } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { FileText, Search, Stethoscope, X } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import type { Dictionary } from '@/lib/i18n'
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/v1'
 
 type Result = {
   id: string
   title: string
-  type: string
-  preview: string
+  type: 'doctor' | 'department' | 'post'
+  href: string
 }
-
-// Placeholder data until doctors/departments/news APIs are wired in
-const sampleResults: Result[] = [
-  { id: 'd1', title: 'د. أحمد محمد — قلب وأوعية دموية', type: 'طبيب', preview: 'استشاري أمراض القلب — خبرة 15 عامًا في القسطرة والتدخلالجاراحي.' },
-  { id: 'd2', title: 'قسم العظام والمفاصل', type: 'قسم', preview: 'جراحات استبدال المفاصل، مناظير العظام، وإصابات الملاعب.' },
-  { id: 'd3', title: 'د. سارة علي — جلدية وتجميل', type: 'طبيب', preview: 'علاج أمراض الجلد، الليزر، والحقن التجميلي.' },
-  { id: 'd4', title: 'طرق الوقاية من أمراض القلب', type: 'مقال', preview: 'نصائح يومية للحفاظ على صحة القلب والشرايين.' },
-  { id: 'e1', title: 'Dr. Ahmed Mohamed — Cardiology', type: 'Doctor', preview: 'Consultant interventional cardiologist with 15 years of experience.' },
-  { id: 'e2', title: 'Orthopedics Department', type: 'Department', preview: 'Joint replacement, arthroscopy, and sports injuries.' },
-  { id: 'e3', title: 'Preventing Heart Disease', type: 'Article', preview: 'Daily habits for a healthy heart.' },
-]
 
 type Props = {
   open: boolean
@@ -30,16 +22,29 @@ type Props = {
   t: Dictionary
 }
 
+type Doctor = { slug: string; name?: string; titleAr?: string; titleEn?: string }
+type Department = { slug: string; name?: string; nameAr?: string; nameEn?: string }
+type Post = { slug: string; type?: string; title?: string; titleAr?: string; titleEn?: string }
+
 export function SearchModal({ open, onClose, locale, t }: Props) {
+  const router = useRouter()
   const [query, setQuery] = useState('')
-  const [selected, setSelected] = useState<Result | null>(null)
+  const [doctors, setDoctors] = useState<Doctor[]>([])
+  const [departments, setDepartments] = useState<Department[]>([])
+  const [posts, setPosts] = useState<Post[]>([])
+  const [loading, setLoading] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  const isAr = locale === 'ar'
+  const typeLabels = useMemo(
+    () => ({ doctor: isAr ? 'طبيب' : 'Doctor', department: isAr ? 'قسم' : 'Department', post: isAr ? 'مقال' : 'Article' }),
+    [isAr],
+  )
 
   useEffect(() => {
     if (open) {
       setQuery('')
-      setSelected(null)
-      // focus the input after the open animation starts
+      setPosts([])
       setTimeout(() => inputRef.current?.focus(), 60)
     }
   }, [open])
@@ -52,14 +57,67 @@ export function SearchModal({ open, onClose, locale, t }: Props) {
     return () => window.removeEventListener('keydown', onKeydown)
   }, [open, onClose])
 
-  // Placeholder matching — replace with real search API later
-  const isAr = locale === 'ar'
-  const pool = isAr ? sampleResults.filter((r) => !r.id.startsWith('e')) : sampleResults.filter((r) => r.id.startsWith('e'))
-  const results = query.trim()
-    ? pool.filter((r) => r.title.includes(query.trim()) || r.preview.includes(query.trim()))
-    : pool
+  // Load the real doctors/departments directories once per open (small lists)
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    Promise.all([
+      fetch(`${API_URL}/doctors?locale=${locale}&limit=200`).then((r) => (r.ok ? r.json() : { data: [] })).catch(() => ({ data: [] })),
+      fetch(`${API_URL}/departments?locale=${locale}`).then((r) => (r.ok ? r.json() : { data: [] })).catch(() => ({ data: [] })),
+    ]).then(([d, dep]: [{ data: Doctor[] }, { data: Department[] }]) => {
+      if (cancelled) return
+      setDoctors(Array.isArray(d?.data) ? d.data : [])
+      setDepartments(Array.isArray(dep?.data) ? dep.data : [])
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [open, locale])
 
-  const BackIcon = isAr ? ArrowRight : ArrowLeft
+  // Debounced server-side search across published posts
+  useEffect(() => {
+    const q = query.trim()
+    if (!q) {
+      setPosts([])
+      setLoading(false)
+      return
+    }
+    setLoading(true)
+    const timer = setTimeout(() => {
+      fetch(`${API_URL}/posts?q=${encodeURIComponent(q)}&locale=${locale}&limit=5`)
+        .then((r) => (r.ok ? r.json() : { data: [] }))
+        .then((p: { data: Post[] }) => setPosts(Array.isArray(p?.data) ? p.data : []))
+        .catch(() => setPosts([]))
+        .finally(() => setLoading(false))
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [query, locale])
+
+  const q = query.trim()
+  const results: Result[] = useMemo(() => {
+    if (!q) return []
+    const out: Result[] = []
+    for (const d of doctors) {
+      const name = d.name || d.titleAr || d.titleEn || ''
+      if (name.includes(q)) out.push({ id: `doc-${d.slug}`, title: name, type: 'doctor', href: `/${locale}/doctors/${d.slug}` })
+    }
+    for (const d of departments) {
+      const name = d.name || d.nameAr || d.nameEn || ''
+      if (name.includes(q)) out.push({ id: `dep-${d.slug}`, title: name, type: 'department', href: `/${locale}/departments/${d.slug}` })
+    }
+    for (const p of posts) {
+      const title = p.title || p.titleAr || p.titleEn || ''
+      out.push({ id: `post-${p.slug}`, title, type: 'post', href: `/${locale}/${p.type === 'news' ? 'news' : 'blog'}/${p.slug}` })
+    }
+    return out.slice(0, 12)
+  }, [q, doctors, departments, posts, locale])
+
+  const TypeIcon = { doctor: Stethoscope, department: Search, post: FileText }
+
+  const go = (href: string) => {
+    onClose()
+    router.push(href)
+  }
 
   return (
     <AnimatePresence>
@@ -89,10 +147,7 @@ export function SearchModal({ open, onClose, locale, t }: Props) {
               <input
                 ref={inputRef}
                 value={query}
-                onChange={(e) => {
-                  setQuery(e.target.value)
-                  setSelected(null)
-                }}
+                onChange={(e) => setQuery(e.target.value)}
                 placeholder={t.header.searchPlaceholder}
                 className="h-13 w-full bg-transparent py-4 text-base text-card-foreground caret-current outline-none placeholder:text-muted-foreground"
               />
@@ -106,53 +161,31 @@ export function SearchModal({ open, onClose, locale, t }: Props) {
               </button>
             </div>
 
-            {/* Body: results list or selected preview */}
+            {/* Body: live results from the real database */}
             <div className="max-h-[50vh] overflow-y-auto p-2">
-              {selected ? (
-                <div className="p-4">
-                  <button
-                    type="button"
-                    onClick={() => setSelected(null)}
-                    className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    <BackIcon className="size-4" />
-                    {t.header.search}
-                  </button>
-                  <span className="inline-block rounded-full bg-brand-soft px-2.5 py-0.5 text-xs font-bold text-brand-deep">
-                    {selected.type}
-                  </span>
-                  <h3 className="mt-2 font-heading text-lg font-bold">{selected.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{selected.preview}</p>
-                  {/* Real link/action lands here once modules exist */}
-                </div>
-              ) : (
-                <>
-                  {!query.trim() && (
-                    <p className="px-3 pb-1 pt-2 text-xs text-muted-foreground">{t.header.searchHint}</p>
-                  )}
-                  {results.length === 0 && (
-                    <p className="px-3 py-6 text-center text-sm text-muted-foreground">
-                      {t.header.searchNoResults}
-                    </p>
-                  )}
-                  {results.map((r) => (
-                    <button
-                      key={r.id}
-                      type="button"
-                      onClick={() => setSelected(r)}
-                      className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-start transition-colors hover:bg-muted"
-                    >
-                      <span className="flex items-center gap-3">
-                        <Search className="size-4 shrink-0 text-muted-foreground" />
-                        <span className="text-sm font-semibold">{r.title}</span>
-                      </span>
-                      <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                        {r.type}
-                      </span>
-                    </button>
-                  ))}
-                </>
+              {!q && <p className="px-3 pb-1 pt-2 text-xs text-muted-foreground">{t.header.searchHint}</p>}
+              {q && !loading && results.length === 0 && (
+                <p className="px-3 py-6 text-center text-sm text-muted-foreground">{t.header.searchNoResults}</p>
               )}
+              {results.map((r) => {
+                const Icon = TypeIcon[r.type]
+                return (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => go(r.href)}
+                    className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-start transition-colors hover:bg-muted"
+                  >
+                    <span className="flex items-center gap-3">
+                      <Icon className="size-4 shrink-0 text-muted-foreground" />
+                      <span className="text-sm font-semibold">{r.title}</span>
+                    </span>
+                    <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                      {typeLabels[r.type]}
+                    </span>
+                  </button>
+                )
+              })}
             </div>
           </motion.div>
         </motion.div>
