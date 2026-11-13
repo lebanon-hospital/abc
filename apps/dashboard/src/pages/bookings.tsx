@@ -28,6 +28,7 @@ type Booking = {
   id: string
   paymentType: 'cash' | 'insurance'
   insuranceCompany: string | null
+  requestStage: 'draft' | 'complete'
   patientName: string
   phone: string
   source: 'website' | 'walk_in' | 'phone'
@@ -83,6 +84,7 @@ export function BookingsPage() {
 
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
+  const [stageFilter,setStageFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [sourceFilter, setSourceFilter] = useState<string>('all')
   const [detail, setDetail] = useState<Booking | null>(null)
@@ -96,14 +98,16 @@ export function BookingsPage() {
   const [error, setError] = useState<string | null>(null)
 
   const listQuery = useQuery({
-    queryKey: ['bookings', page, pageSize, statusFilter, sourceFilter],
+    queryKey: ['bookings', page, pageSize, statusFilter, sourceFilter, stageFilter],
     queryFn: () => {
       const params = new URLSearchParams({ page: String(page), limit: String(pageSize) })
+      if(stageFilter !== 'all')params.set('requestStage',stageFilter)
       if (statusFilter !== 'all') params.set('status', statusFilter)
       if (sourceFilter !== 'all') params.set('source', sourceFilter)
       return api<ListResponse>(`/bookings/admin/?${params}`)
     },
     placeholderData: keepPreviousData,
+    refetchInterval:15000,
   })
 
   const departmentsQuery = useQuery({
@@ -214,6 +218,7 @@ export function BookingsPage() {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-2">
+        <Select value={stageFilter} onValueChange={value=>{setStageFilter(value ?? 'all');setPage(1)}}><SelectTrigger className="h-9 w-44"><SelectValue>{stageFilter==='draft'?(ar?'بيانات مبدئية':'Initial details'):stageFilter==='complete'?(ar?'طلبات مكتملة البيانات':'Completed requests'):(ar?'كل مراحل الطلب':'All request stages')}</SelectValue></SelectTrigger><SelectContent><SelectItem value="all">{ar?'كل مراحل الطلب':'All request stages'}</SelectItem><SelectItem value="draft">{ar?'بيانات مبدئية':'Initial details'}</SelectItem><SelectItem value="complete">{ar?'طلبات مكتملة البيانات':'Completed requests'}</SelectItem></SelectContent></Select>
         <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v ?? 'all'); setPage(1) }}>
           <SelectTrigger className="h-9 w-40">
             <SelectValue>
@@ -275,7 +280,7 @@ export function BookingsPage() {
             ) : (
               rows.map((b) => (
                 <TableRow key={b.id} className="cursor-pointer" onClick={() => openDetail(b)}>
-                  <TableCell className="font-medium">{b.patientName}</TableCell>
+                  <TableCell className="font-medium">{b.patientName}{b.requestStage==='draft' && <Badge variant="outline" className="mt-1 block w-fit text-xs">{ar?'بيانات مبدئية':'Initial details'}</Badge>}</TableCell>
                   <TableCell className="whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center gap-1.5">
                       <span dir="ltr">{b.phone}</span>
@@ -297,7 +302,7 @@ export function BookingsPage() {
                       </a>
                     </div>
                   </TableCell>
-                  <TableCell>{b.paymentType === 'insurance' ? `${ar ? 'تأمين' : 'Insurance'} — ${b.insuranceCompany ?? '—'}` : (ar ? 'نقدي' : 'Cash')}</TableCell>
+                  <TableCell>{b.requestStage === 'draft' ? (ar ? 'لم يُحدد' : 'Not specified') : b.paymentType === 'insurance' ? `${ar ? 'تأمين' : 'Insurance'} — ${b.insuranceCompany ?? '—'}` : (ar ? 'نقدي' : 'Cash')}</TableCell>
                   <TableCell dir="rtl">{b.departmentNameAr ?? '—'}</TableCell>
                   <TableCell dir="rtl">{b.doctorNameAr ?? '—'}</TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>
@@ -359,6 +364,7 @@ export function BookingsPage() {
                   <span>{t('bookings.preferred')}: {detail.preferredDate}</span>
                 )}
               </div>
+              {detail.requestStage==='draft' && <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{ar?'الاسم ورقم الهاتف محفوظان مبدئيًا. العميل لم يُكمل طلب الموعد بعد.':'Name and phone saved. The patient has not completed the appointment request yet.'}</p>}
               {paymentFields(detailPayment, detailCompany, setDetailPayment, setDetailCompany, 'detail')}
               {detail.patientNotes && (
                 <p className="rounded-lg border bg-muted/50 p-3 text-sm leading-relaxed">{detail.patientNotes}</p>

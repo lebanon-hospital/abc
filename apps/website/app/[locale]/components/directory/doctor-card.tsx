@@ -1,9 +1,10 @@
+import { BookingButton } from '../booking-provider'
 import Image from 'next/image'
 import Link from 'next/link'
 import { ArrowUpRight, CalendarDays, UserRound } from 'lucide-react'
 import type { Locale } from '@/lib/i18n'
 
-export function DoctorCard({ doctor, locale }: { doctor: { name: string; slug?: string; title: string | null; photoUrl: string | null; departmentName?: string | null; departmentSlug?: string | null }; locale: Locale }) {
+export function DoctorCard({ doctor, locale }: { doctor: { name: string; slug?: string; title: string | null; photoUrl: string | null; departmentName?: string | null; departmentSlug?: string | null; departments?: {id:string;slug:string;name:string}[] }; locale: Locale }) {
   const ar = locale === 'ar'
   const profileHref = doctor.slug ? `/${locale}/doctors/${doctor.slug}` : null
 
@@ -26,14 +27,8 @@ export function DoctorCard({ doctor, locale }: { doctor: { name: string; slug?: 
       </div>
     )}
     <div className="hospital-doctor-footer">
-      {doctor.departmentName && (doctor.departmentSlug ? <Link className="hospital-specialty" href={`/${locale}/departments/${doctor.departmentSlug}`}>{doctor.departmentName}</Link> : <p className="hospital-specialty">{doctor.departmentName}</p>)}
-      {profileHref && (
-        <Link className="hospital-doctor-cta" href={profileHref}>
-          <CalendarDays size={16} />
-          {ar ? 'اطلب حجزًا' : 'Request a visit'}
-          <ArrowUpRight size={15} className="hospital-doctor-cta-arrow" />
-        </Link>
-      )}
+      {doctor.departments?.length ? <div className="doctor-specialties">{doctor.departments.map(d=><Link key={d.id} className="hospital-specialty" href={`/${locale}/departments/${d.slug}`}>{d.name}</Link>)}</div> : doctor.departmentName && (doctor.departmentSlug ? <Link className="hospital-specialty" href={`/${locale}/departments/${doctor.departmentSlug}`}>{doctor.departmentName}</Link> : <p className="hospital-specialty">{doctor.departmentName}</p>)}
+      {profileHref && <BookingButton locale={locale} doctorSlug={doctor.slug} className="hospital-doctor-cta"><CalendarDays size={16}/>{ar ? 'احجز موعد' : 'Book an appointment'}<ArrowUpRight size={15} className="hospital-doctor-cta-arrow"/></BookingButton>}
     </div>
   </article>
 }

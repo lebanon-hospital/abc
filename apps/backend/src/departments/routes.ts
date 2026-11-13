@@ -1,7 +1,8 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi'
-import { asc, desc, eq, and, ne } from 'drizzle-orm'
+import { asc, desc, eq, and, ne, inArray, or } from 'drizzle-orm'
 import { db } from '../db/client'
-import { departments, doctorSchedules, doctors } from '../db/schema'
+import { doctorDepartmentMap } from '../doctors/departments'
+import { doctorDepartments, departments, doctorSchedules, doctors } from '../db/schema'
 import { authGuard } from '../auth/middleware'
 import { recordAudit } from '../lib/audit'
 import { slugSchema, slugify, uniqueSlug } from '../lib/slug'
@@ -93,7 +94,7 @@ departmentsRouter.openapi(getPublicRoute, async (c) => {
   const docs = await db
     .select()
     .from(doctors)
-    .where(and(eq(doctors.departmentId, dept.id), eq(doctors.status, 'published')))
+    .where(and(or(eq(doctors.departmentId, dept.id), inArray(doctors.id, db.select({ id:doctorDepartments.doctorId }).from(doctorDepartments).where(eq(doctorDepartments.departmentId, dept.id)))), eq(doctors.status, 'published')))
     .orderBy(asc(doctors.sortOrder), asc(doctors.nameEn))
 
   return c.json({
@@ -150,10 +151,11 @@ departmentsRouter.openapi(listAdminRoute, async (c) => {
     .orderBy(asc(departments.sortOrder), asc(departments.nameEn))
 
   const docs = await db.select().from(doctors)
+  const memberships = await doctorDepartmentMap()
   return c.json({
     data: rows.map((d) => ({
       ...d,
-      doctorsCount: docs.filter((doc) => doc.departmentId === d.id).length,
+      doctorsCount: docs.filter((doc) => (memberships.get(doc.id)?.map(item => item.id) ?? [doc.departmentId]).includes(d.id)).length,
     })),
   })
 })
@@ -290,6 +292,7 @@ const adminDoctorSchema = z.object({
   contentEn: z.string().optional(),
   photoUrl: z.string().trim().url().optional().or(z.literal('')),
   departmentId: z.string().uuid().nullable().optional(),
+  departmentIds: z.array(z.string().uuid()).max(50).optional(),
   sortOrder: z.coerce.number().int().default(0),
   status: z.enum(['draft', 'published', 'archived']).default('published'),
 })
@@ -376,10 +379,14 @@ departmentsRouter.openapi(listDoctorsRoute, async (c) => {
     .from(doctors)
     .orderBy(asc(doctors.sortOrder), asc(doctors.nameEn))
   const depts = await db.select().from(departments)
+  const memberships = await doctorDepartmentMap()
   return c.json({
     data: rows.map((doc) => ({
       ...doc,
-      departmentName: depts.find((d) => d.id === doc.departmentId)?.nameAr ?? null,
+      departmentIds: (memberships.get(doc.id) ?? depts.filter(d => d.id === doc.departmentId)).map(d => d.id),
+      departments: (memberships.get(doc.id) ?? depts.filter(d => d.id === doc.departmentId)).map(d => ({ id:d.id, nameAr:d.nameAr, nameEn:d.nameEn })),
+      departmentName: (memberships.get(doc.id) ?? depts.filter(d => d.id === doc.departmentId)).map(d => d.nameAr).join('، ') || null,
+      legacyDepartmentName: depts.find((d) => d.id === doc.departmentId)?.nameAr ?? null,
     })),
   })
 })
@@ -418,10 +425,14 @@ departmentsRouter.openapi(createDoctorRoute, async (c) => {
     .limit(1)
   if (existing.length > 0) return c.json({ error: 'Slug already exists' }, 409)
 
-  const [row] = await db
-    .insert(doctors)
-    .values({ ...body, slug: doctors_slug, photoUrl: body.photoUrl || null, departmentId: body.departmentId ?? null })
-    .returning()
+  const { departmentIds, ...values } = body
+  const assigned = [...new Set(departmentIds ?? (body.departmentId ? [body.departmentId] : []))]
+  if (assigned.length && (await db.select({ id:departments.id }).from(departments).where(inArray(departments.id, assigned))).length !== assigned.length) return c.json({ error:'Invalid departments' }, 400)
+  const row = await db.transaction(async tx => {
+    const [created] = await tx.insert(doctors).values({ ...values, slug:doctors_slug, photoUrl:body.photoUrl || null, departmentId:assigned[0] ?? null }).returning()
+    if (assigned.length) await tx.insert(doctorDepartments).values(assigned.map(departmentId => ({ doctorId:created.id, departmentId })))
+    return { ...created, departmentIds:assigned }
+  })
 
   await recordAudit({
     actorId: user.id,
@@ -462,17 +473,22 @@ departmentsRouter.openapi(updateDoctorRoute, async (c) => {
     if (clash.length > 0) return c.json({ error: 'Slug already exists' }, 409)
   }
 
-  const [row] = await db
-    .update(doctors)
-    .set({
-      ...body,
-      ...(body.photoUrl !== undefined ? { photoUrl: body.photoUrl || null } : {}),
-      ...(body.departmentId !== undefined ? { departmentId: body.departmentId ?? null } : {}),
-      updatedAt: new Date(),
-    })
-    .where(eq(doctors.id, id))
-    .returning()
-  if (!row) return c.json({ error: 'Not found' }, 404)
+  const { departmentIds, ...values } = body
+  const assigned = departmentIds !== undefined ? [...new Set(departmentIds)] : body.departmentId !== undefined ? (body.departmentId ? [body.departmentId] : []) : undefined
+  if (assigned?.length && (await db.select({ id:departments.id }).from(departments).where(inArray(departments.id, assigned))).length !== assigned.length) return c.json({ error:'Invalid departments' }, 400)
+  const row = await db.transaction(async tx => {
+    const [updated] = await tx.update(doctors).set({ ...values,
+      ...(body.photoUrl !== undefined ? { photoUrl:body.photoUrl || null } : {}),
+      ...(assigned !== undefined ? { departmentId:assigned[0] ?? null } : {}), updatedAt:new Date(),
+    }).where(eq(doctors.id,id)).returning()
+    if (!updated) return null
+    if (assigned !== undefined) {
+      await tx.delete(doctorDepartments).where(eq(doctorDepartments.doctorId,id))
+      if (assigned.length) await tx.insert(doctorDepartments).values(assigned.map(departmentId => ({ doctorId:id, departmentId })))
+    }
+    return { ...updated, ...(assigned !== undefined ? { departmentIds:assigned } : {}) }
+  })
+  if (!row) return c.json({ error:'Not found' }, 404)
 
   await recordAudit({
     actorId: user.id,

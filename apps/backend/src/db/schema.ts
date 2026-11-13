@@ -1,4 +1,4 @@
-import { boolean, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
+import { boolean, index, integer, jsonb, pgEnum, primaryKey, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 
 export const roleEnum = pgEnum('role', ['admin', 'call_center', 'marketer'])
 
@@ -142,6 +142,13 @@ export const doctors = pgTable(
   (table) => [index('doctors_department_idx').on(table.departmentId)],
 )
 
+// A doctor can practice in multiple departments. departmentId remains the primary
+// specialty for existing integrations; memberships are stored relationally here.
+export const doctorDepartments = pgTable('doctor_departments', {
+  doctorId: uuid('doctor_id').notNull().references(() => doctors.id, { onDelete: 'cascade' }),
+  departmentId: uuid('department_id').notNull().references(() => departments.id, { onDelete: 'cascade' }),
+}, table => [primaryKey({ columns: [table.doctorId, table.departmentId] }), index('doctor_departments_department_idx').on(table.departmentId)])
+
 export type Doctor = typeof doctors.$inferSelect
 export type NewDoctor = typeof doctors.$inferInsert
 
@@ -152,6 +159,8 @@ export const bookings = pgTable(
     // patient contact
     patientName: text('patient_name').notNull(),
     phone: text('phone').notNull(), // E.164
+    requestStage: text('request_stage').default('complete').notNull(), // draft | complete
+    requestKeyHash: text('request_key_hash').unique(),
     // original request
     source: text('source').default('website').notNull(), // website | walk_in | phone
     departmentId: uuid('department_id').references(() => departments.id, { onDelete: 'set null' }),

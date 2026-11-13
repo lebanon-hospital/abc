@@ -1,6 +1,8 @@
+import { createHash } from 'node:crypto'
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi'
 import { and, count, desc, eq } from 'drizzle-orm'
 import { db } from '../db/client'
+import { doctorDepartmentMap } from '../doctors/departments'
 import { bookings, departments, doctors } from '../db/schema'
 import { authGuard } from '../auth/middleware'
 import { recordAudit } from '../lib/audit'
@@ -16,7 +18,10 @@ const STATUSES = ['new', 'contacted', 'confirmed', 'declined', 'cancelled', 'com
 
 /* ---------------------------------- public --------------------------------- */
 
+const requestKeyHash = (key: string) => createHash('sha256').update(key).digest('hex')
+
 const requestSchema = z.object({
+  requestKey: z.string().uuid().optional(),
   paymentType: z.enum(['cash', 'insurance']).default('cash'),
   insuranceCompany: z.string().trim().min(1).max(120).optional(),
   patientName: z.string().trim().min(2).max(120),
@@ -27,6 +32,28 @@ const requestSchema = z.object({
   time: z.string().trim().regex(/^\d{2}:\d{2}$/).optional(), // HH:MM slot
   preferredDate: z.string().trim().max(40).optional(),
   patientNotes: z.string().trim().max(1000).optional(),
+})
+
+const draftSchema = z.object({
+  requestKey: z.string().uuid(),
+  patientName: z.string().trim().min(2).max(120),
+  phone: z.string().trim().min(5).max(20),
+})
+const draftRoute = createRoute({
+  method:'post', path:'/drafts', tags:['bookings'], summary:'Save initial booking contact details; the secret request key identifies this draft',
+  request:{body:{content:{'application/json':{schema:draftSchema}}}},
+  responses:{200:{description:'Draft saved',content:{'application/json':{schema:z.object({id:z.string().uuid()})}}},400:{description:'Invalid contact details'}},
+})
+bookingsRouter.openapi(draftRoute,async c=>{
+  const body=c.req.valid('json')
+  const phone=normalizePhone(body.phone)
+  if(!phone)return c.json({error:'Invalid phone number'},400)
+  const hash=requestKeyHash(body.requestKey)
+  const [saved]=await db.insert(bookings).values({patientName:body.patientName,phone,requestKeyHash:hash,requestStage:'draft',source:'website',status:'new'})
+    .onConflictDoUpdate({target:bookings.requestKeyHash,set:{patientName:body.patientName,phone,updatedAt:new Date()},setWhere:eq(bookings.requestStage,'draft')})
+    .returning({id:bookings.id})
+  const row=saved ?? (await db.select({id:bookings.id}).from(bookings).where(eq(bookings.requestKeyHash,hash)).limit(1))[0]
+  return c.json({id:row.id},200)
 })
 
 const createRequestRoute = createRoute({
@@ -59,7 +86,8 @@ bookingsRouter.openapi(createRequestRoute, async (c) => {
       .from(departments)
       .where(eq(departments.slug, body.departmentSlug))
       .limit(1)
-    departmentId = dept?.id ?? null
+    if (!dept) return c.json({error:'Invalid department'},400)
+    departmentId = dept.id
   }
 
   let doctorId: string | null = null
@@ -69,27 +97,25 @@ bookingsRouter.openapi(createRequestRoute, async (c) => {
       .from(doctors)
       .where(eq(doctors.slug, body.doctorSlug))
       .limit(1)
-    doctorId = doc?.id ?? null
-    if (doc?.departmentId && !departmentId) departmentId = doc.departmentId
+    if (!doc) return c.json({error:'Invalid doctor'},400)
+    doctorId = doc.id
+    const memberships = await doctorDepartmentMap()
+    const assigned = memberships.get(doc.id)?.map(d=>d.id) ?? (doc.departmentId ? [doc.departmentId] : [])
+    if (departmentId && !assigned.includes(departmentId)) return c.json({error:'Doctor does not practice in this department'},400)
+    if (!departmentId) departmentId = doc.departmentId ?? assigned[0] ?? null
   }
 
-  const [row] = await db
-    .insert(bookings)
-    .values({
-      paymentType: body.paymentType,
-      insuranceCompany: body.paymentType === 'insurance' ? body.insuranceCompany : null,
-      patientName: body.patientName,
-      phone,
-      source: 'website',
-      departmentId,
-      doctorId,
-      appointmentDate: body.date || null,
-      appointmentTime: body.time || null,
-      preferredDate: body.preferredDate || null,
-      patientNotes: body.patientNotes || null,
-      status: 'new',
-    })
-    .returning({ id: bookings.id })
+  const values = {
+    paymentType:body.paymentType, insuranceCompany:body.paymentType === 'insurance' ? body.insuranceCompany : null,
+    patientName:body.patientName, phone, source:'website', departmentId,doctorId,
+    appointmentDate:body.date || null, appointmentTime:body.time || null, preferredDate:body.preferredDate || null,
+    patientNotes:body.patientNotes || null, requestStage:'complete', updatedAt:new Date(),
+  }
+  const hash=body.requestKey ? requestKeyHash(body.requestKey) : null
+  const [saved]=await db.insert(bookings).values({...values,requestKeyHash:hash,status:'new'})
+    .onConflictDoUpdate({target:bookings.requestKeyHash,set:values,setWhere:eq(bookings.requestStage,'draft')})
+    .returning({id:bookings.id})
+  const row=saved ?? (await db.select({id:bookings.id}).from(bookings).where(eq(bookings.requestKeyHash,hash!)).limit(1))[0]
 
   // TODO: staff email notification once SMTP is configured
   return c.json({ id: row.id }, 201)
@@ -111,6 +137,7 @@ const listRoute = createRoute({
     query: z.object({
       page: z.coerce.number().int().min(1).default(1),
       limit: z.coerce.number().int().min(1).max(100).default(10),
+      requestStage: z.enum(['draft','complete']).optional(),
       status: z.enum(STATUSES).optional(),
       source: z.enum(['website', 'walk_in', 'phone']).optional(),
     }),
@@ -133,9 +160,10 @@ const listRoute = createRoute({
 })
 
 bookingsRouter.openapi(listRoute, async (c) => {
-  const { page, limit, status, source } = c.req.valid('query')
+  const { page, limit, status, source, requestStage } = c.req.valid('query')
 
   const filters = [
+    requestStage ? eq(bookings.requestStage,requestStage) : undefined,
     status ? eq(bookings.status, status) : undefined,
     source ? eq(bookings.source, source) : undefined,
   ].filter(Boolean)
@@ -163,7 +191,7 @@ bookingsRouter.openapi(listRoute, async (c) => {
     .offset((page - 1) * limit)
 
   return c.json({
-    data: rows.map(({ booking, deptNameAr, deptNameEn, deptSlug, doctorNameAr, doctorNameEn }) => ({
+    data: rows.map(({ booking: { requestKeyHash: _requestKeyHash, ...booking }, deptNameAr, deptNameEn, deptSlug, doctorNameAr, doctorNameEn }) => ({
       ...booking,
       departmentSlug: deptSlug,
       departmentNameAr: deptNameAr,

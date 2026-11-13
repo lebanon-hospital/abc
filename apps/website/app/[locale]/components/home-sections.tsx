@@ -1,3 +1,4 @@
+import { BookingButton } from './booking-provider'
 import { contentFetch } from '@/lib/content-fetch'
 import Link from 'next/link'
 import { ArrowUpRight, Award, HeartPulse, Stethoscope, Users } from 'lucide-react'
@@ -63,9 +64,7 @@ export async function HomeSections({ locale }: { locale: Locale }) {
               {ar ? 'استكشف أقسامنا' : 'Explore departments'}
               <ArrowUpRight size={18} className="rtl:-rotate-90" />
             </Link>
-            <a href={`tel:${site.hotline}`} dir="ltr" className="home-about-phone">
-              {site.hotline}
-            </a>
+            <BookingButton locale={locale} className="home-about-phone" />
           </div>
         </div>
         <div className="home-about-media" data-aos="fade-up" data-aos-delay="120">

@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { BookingButton } from './booking-provider'
 import { useEffect, useState, type FormEvent } from 'react'
 import { ArrowUpRight, ChevronLeft, ChevronRight, Phone, CheckCircle2 } from 'lucide-react'
 import { site } from '@/lib/site'
@@ -8,6 +9,8 @@ import type { Locale } from '@/lib/i18n'
 import { parsePhoneNumberFromString, type CountryCode } from 'libphonenumber-js'
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from './ui/sheet'
 import { PaymentFields } from './ui/payment-fields'
+import { useBookingDraft } from '@/lib/hooks/use-booking-draft'
+import { DraftStatus } from './ui/draft-status'
 import { PhoneInput } from './ui/phone-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
 
@@ -19,7 +22,7 @@ const slides = [
 ]
 
 type DeptOption = { slug: string; name: string }
-type DoctorOption = { slug: string; name: string; departmentSlug: string | null }
+type DoctorOption = { slug: string; name: string; departmentSlug: string | null; departmentSlugs?: string[] }
 
 export function HomeHero({ locale, departments = [], doctors = [] }: { locale: Locale; departments?: DeptOption[]; doctors?: DoctorOption[] }) {
   const ar = locale === 'ar'
@@ -39,6 +42,7 @@ export function HomeHero({ locale, departments = [], doctors = [] }: { locale: L
   const [submitting, setSubmitting] = useState(false)
   const [sent, setSent] = useState(false)
   const [serverError, setServerError] = useState(false)
+  const draft = useBookingDraft({name,phone,country,enabled:mobile && !sent})
 
   useEffect(() => {
     const query = window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -86,18 +90,14 @@ export function HomeHero({ locale, departments = [], doctors = [] }: { locale: L
     setSubmitting(true)
     try {
       const api = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/v1'
-      const res = await fetch(`${api}/bookings/requests`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const res = await draft.complete({
           patientName: name.trim(),
           phone: parsed?.number ?? phone,
           departmentSlug: department || undefined,
           doctorSlug: doctor || undefined,
           paymentType,
           insuranceCompany: paymentType === 'insurance' ? insuranceCompany.trim() : undefined,
-        }),
-      })
+        })
       if (!res.ok) throw new Error('request failed')
       setSent(true)
       setSheetOpen(false)
@@ -116,7 +116,7 @@ export function HomeHero({ locale, departments = [], doctors = [] }: { locale: L
   function bookingOptions(includePayment = true, prefix = 'hero') {
     return <>
               <div className="hero-field"><label htmlFor={`${prefix}-department`}>{ar ? 'التخصص' : 'Department'}</label><Select value={department || 'any'} onValueChange={(value) => { setDepartment(value === 'any' ? '' : value); setDoctor('') }} dir={ar ? 'rtl' : 'ltr'}><SelectTrigger id={`${prefix}-department`} className="hero-select"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="any">{ar ? 'ساعدني في الاختيار' : 'Help me choose'}</SelectItem>{departments.map((item) => <SelectItem value={item.slug} key={item.slug}>{item.name}</SelectItem>)}</SelectContent></Select></div>
-              <div className="hero-field"><label htmlFor={`${prefix}-doctor`}>{ar ? 'الطبيب' : 'Doctor'}</label><Select value={doctor || 'any'} onValueChange={(value) => setDoctor(value === 'any' ? '' : value)} disabled={!department} dir={ar ? 'rtl' : 'ltr'}><SelectTrigger id={`${prefix}-doctor`} className="hero-select"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="any">{ar ? 'أي طبيب مناسب' : 'Any suitable doctor'}</SelectItem>{doctors.filter((d) => d.departmentSlug === department).map((d) => <SelectItem value={d.slug} key={d.slug}>{d.name}</SelectItem>)}</SelectContent></Select></div>
+              <div className="hero-field"><label htmlFor={`${prefix}-doctor`}>{ar ? 'الطبيب' : 'Doctor'}</label><Select value={doctor || 'any'} onValueChange={(value) => setDoctor(value === 'any' ? '' : value)} disabled={!department} dir={ar ? 'rtl' : 'ltr'}><SelectTrigger id={`${prefix}-doctor`} className="hero-select"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="any">{ar ? 'أي طبيب مناسب' : 'Any suitable doctor'}</SelectItem>{doctors.filter((d) => (d.departmentSlugs ?? [d.departmentSlug]).includes(department)).map((d) => <SelectItem value={d.slug} key={d.slug}>{d.name}</SelectItem>)}</SelectContent></Select></div>
               {includePayment && <PaymentFields locale={locale} paymentType={paymentType} insuranceCompany={insuranceCompany} onPaymentChange={setPaymentType} onCompanyChange={setInsuranceCompany} />}
     </>
   }
@@ -136,7 +136,7 @@ export function HomeHero({ locale, departments = [], doctors = [] }: { locale: L
           <p className="home-hero-eyebrow"><span />{ar ? 'مستشفى ABC · المهندسين' : 'ABC HOSPITAL · MOHANDESEEN'}</p>
           <h1 id="home-hero-heading">{ar ? 'صحتك أولاً.' : 'Your health.'}<br /><span>{ar ? 'ورعايتك اهتمامنا.' : 'Our personal commitment.'}</span></h1>
           <p className="home-hero-description">{ar ? 'رعاية تبدأ بالاستماع إليك. اختر التخصص المناسب، ودعنا نساعدك في الخطوة التالية للاطمئنان على صحتك.' : 'Care that starts with listening. Find the right specialty, and let us help you take the next step toward feeling better.'}</p>
-          <a className="home-hero-call" href={`tel:${site.hotline}`}><span className="home-hero-call-icon"><Phone size={19} /></span><span><small>{ar ? 'تفضل التحدث معنا؟' : 'Prefer to speak with us?'}</small><strong dir="ltr">{site.hotline}</strong></span><ArrowUpRight size={20} className="rtl:-rotate-90" /></a>
+          <BookingButton locale={locale} className="home-hero-call"><span>{ar ? 'احجز موعد' : 'Book an appointment'}</span><ArrowUpRight size={20} className="rtl:-rotate-90" /></BookingButton>
           <div className="home-hero-carousel" role="group" aria-label={ar ? 'صور الخلفية' : 'Background slideshow'}>
             <span className="home-hero-slide-number" aria-live="off">0{active + 1}<span> / 03</span></span>
             <div className="home-hero-dots">{slides.map((_, index) => <button type="button" key={index} onClick={() => selectSlide(index)} aria-label={ar ? `عرض الصورة ${index + 1}` : `Show image ${index + 1}`} aria-pressed={active === index}><span className={active === index ? 'is-active' : ''} /></button>)}</div>
@@ -155,6 +155,7 @@ export function HomeHero({ locale, departments = [], doctors = [] }: { locale: L
               <div className="hero-phone-field"><label htmlFor="hero-phone">{ar ? 'رقم الموبايل' : 'Mobile number'} <span aria-hidden="true">*</span></label><PhoneInput id="hero-phone" locale={locale} country={country} onCountryChange={setCountry} value={phone} onChange={setPhone} invalid={phoneError} required />{phoneError && <p role="alert" className="mt-2 text-xs text-destructive">{ar ? 'أدخل رقم هاتف صحيح.' : 'Enter a valid phone number.'}</p>}</div>
               <fieldset className="hero-desktop-options" disabled={mobile}><PaymentFields locale={locale} paymentType={paymentType} insuranceCompany={insuranceCompany} onPaymentChange={setPaymentType} onCompanyChange={setInsuranceCompany} /></fieldset>
             </div>
+            {mobile && <DraftStatus state={draft.state} locale={locale} />}
             <button className="hero-booking-submit" type="submit" disabled={submitting}>{submitting ? (ar ? 'جارٍ الإرسال…' : 'Sending…') : (ar ? 'احجز بسهولة' : 'Book with ease')}<ArrowUpRight size={19} className="rtl:-rotate-90" /></button>
             <p className="hero-booking-note hero-desktop-note">{ar ? 'الموعد يتم تأكيده باتصال من فريقنا.' : 'Your appointment is confirmed by a call from our team.'}</p>
             <p className="hero-booking-terms hero-mobile-terms"><Link href={`/${locale}/terms`}>{ar ? 'تطبق الشروط والأحكام' : 'Terms and conditions apply'}</Link></p>

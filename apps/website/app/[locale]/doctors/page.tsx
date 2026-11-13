@@ -15,6 +15,8 @@ type DoctorCard = {
   name: string
   title: string | null
   photoUrl: string | null
+  departmentSlugs?: string[]
+  departments?: {id:string;slug:string;name:string}[]
   departmentSlug: string | null
   departmentName: string | null
 }

@@ -8,6 +8,8 @@ import type { Dictionary, Locale } from '@/lib/i18n'
 import { formatTime } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { PaymentFields } from '../ui/payment-fields'
+import { useBookingDraft } from '@/lib/hooks/use-booking-draft'
+import { DraftStatus } from '../ui/draft-status'
 import { PhoneInput } from '../ui/phone-input'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/v1'
@@ -68,6 +70,7 @@ export function SlotBooking({
   const [submitting, setSubmitting] = useState(false)
   const [sent, setSent] = useState(false)
   const [serverError, setServerError] = useState(false)
+  const draft = useBookingDraft({name,phone,country,enabled:!!slot && !sent})
 
   // fetch slots whenever the selected date changes
   useEffect(() => {
@@ -104,10 +107,7 @@ export function SlotBooking({
 
     setSubmitting(true)
     try {
-      const res = await fetch(`${API_URL}/bookings/requests`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const res = await draft.complete({
           patientName: name.trim(),
           phone: parsed?.number ?? phone,
           paymentType,
@@ -115,8 +115,7 @@ export function SlotBooking({
           doctorSlug,
           date,
           time: slot,
-        }),
-      })
+        })
       if (!res.ok) throw new Error('failed')
       setSent(true)
     } catch {
@@ -259,6 +258,7 @@ export function SlotBooking({
                   invalid={phoneError}
                 />
                 <div className="grid gap-3 sm:grid-cols-2"><PaymentFields locale={locale} paymentType={paymentType} insuranceCompany={insuranceCompany} onPaymentChange={setPaymentType} onCompanyChange={setInsuranceCompany} /></div>
+                <DraftStatus state={draft.state} locale={locale} />
                 {phoneError && (
                   <p className="text-xs text-destructive">
                     {ar ? 'أدخل رقم هاتف صحيح.' : 'Enter a valid phone number.'}

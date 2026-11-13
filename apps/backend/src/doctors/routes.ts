@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi'
 import { and, asc, eq, inArray } from 'drizzle-orm'
 import { db } from '../db/client'
+import { doctorDepartmentMap } from './departments'
 import { bookings, departments, doctorSchedules, doctors } from '../db/schema'
 
 const doctorsRouter = new OpenAPIHono()
@@ -34,7 +35,7 @@ const listRoute = createRoute({
   request: {
     query: z.object({
       locale: z.enum(['ar', 'en']).default('ar'),
-      dept: z.string().optional(), // department slug
+      dept: z.string().max(2000).optional(), // comma-separated department slugs (matches any selected specialty)
     }),
   },
   responses: {
@@ -49,6 +50,8 @@ const listRoute = createRoute({
                 name: z.string(),
                 title: z.string().nullable(),
                 photoUrl: z.string().nullable(),
+                departments: z.array(z.object({ id: z.string().uuid(), slug: z.string(), name: z.string() })),
+                departmentSlugs: z.array(z.string()),
                 departmentSlug: z.string().nullable(),
                 departmentName: z.string().nullable(),
               }),
@@ -69,19 +72,23 @@ doctorsRouter.openapi(listRoute, async (c) => {
     .select({ doctor: doctors, dept: departments })
     .from(doctors)
     .leftJoin(departments, eq(doctors.departmentId, departments.id))
-    .where(and(eq(doctors.status, 'published'), dept ? eq(departments.slug, dept) : undefined))
+    .where(eq(doctors.status, 'published'))
     .orderBy(asc(doctors.sortOrder), asc(doctors.nameEn))
 
+  const memberships = await doctorDepartmentMap(true)
+  const requested = dept?.split(',').filter(Boolean) ?? []
   return c.json({
-    data: rows.map(({ doctor, dept: d }) => ({
-      id: doctor.id,
-      slug: doctor.slug,
-      name: isAr ? doctor.nameAr : doctor.nameEn,
-      title: isAr ? doctor.titleAr : doctor.titleEn,
-      photoUrl: doctor.photoUrl,
-      departmentSlug: d?.slug ?? null,
-      departmentName: d ? (isAr ? d.nameAr : d.nameEn) : null,
-    })),
+    data: rows.flatMap(({ doctor, dept: primary }) => {
+      const assigned = memberships.get(doctor.id) ?? (primary?.status === 'published' ? [primary] : [])
+      if (requested.length && !assigned.some(d => requested.includes(d.slug))) return []
+      return [{ id: doctor.id, slug: doctor.slug, name: isAr ? doctor.nameAr : doctor.nameEn,
+        title: isAr ? doctor.titleAr : doctor.titleEn, photoUrl: doctor.photoUrl,
+        departments: assigned.map(d => ({ id:d.id, slug:d.slug, name:isAr ? d.nameAr : d.nameEn })),
+        departmentSlugs: assigned.map(d => d.slug),
+        departmentSlug: assigned[0]?.slug ?? null,
+        departmentName: assigned[0] ? (isAr ? assigned[0].nameAr : assigned[0].nameEn) : null,
+      }]
+    }),
   })
 })
 
@@ -119,6 +126,9 @@ doctorsRouter.openapi(detailRoute, async (c) => {
     .where(eq(doctorSchedules.doctorId, row.doctor.id))
     .orderBy(asc(doctorSchedules.weekday), asc(doctorSchedules.startTime))
 
+  const memberships = await doctorDepartmentMap(true)
+  const assigned = memberships.get(row.doctor.id) ?? (row.dept?.status === 'published' ? [row.dept] : [])
+
   return c.json({
     data: {
       id: row.doctor.id,
@@ -127,7 +137,9 @@ doctorsRouter.openapi(detailRoute, async (c) => {
       title: isAr ? row.doctor.titleAr : row.doctor.titleEn,
       photoUrl: row.doctor.photoUrl,
       content: isAr ? row.doctor.contentAr : row.doctor.contentEn,
-      departmentSlug: row.dept?.slug ?? null,
+      departments: assigned.map(d => ({ id:d.id, slug:d.slug, name:isAr ? d.nameAr : d.nameEn })),
+      departmentSlugs: assigned.map(d => d.slug),
+      departmentSlug: assigned[0]?.slug ?? null,
       departmentName: row.dept ? (isAr ? row.dept.nameAr : row.dept.nameEn) : null,
       schedule: schedule.map((s) => ({
         weekday: s.weekday,

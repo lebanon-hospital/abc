@@ -18,6 +18,7 @@ type DoctorDetail = {
   title: string | null
   photoUrl: string | null
   content: string | null
+  departments?:{id:string;slug:string;name:string}[]
   departmentSlug: string | null
   departmentName: string | null
   schedule: Session[]
@@ -80,14 +81,7 @@ export default async function DoctorPage({
           <div className="flex-1 text-center sm:text-start">
             <h1 className="font-heading text-3xl font-bold">{doc.name}</h1>
             {doc.title && <p className="mt-2 text-lg text-muted-foreground">{doc.title}</p>}
-            {doc.departmentName && doc.departmentSlug && (
-              <Link
-                href={`/${locale}/departments/${doc.departmentSlug}`}
-                className="mt-4 inline-block rounded-full bg-brand-soft px-4 py-1.5 text-sm font-bold text-brand-deep transition-colors hover:bg-brand/30"
-              >
-                {doc.departmentName}
-              </Link>
-            )}
+            <div className="mt-4 flex flex-wrap justify-center gap-2 sm:justify-start">{(doc.departments ?? (doc.departmentSlug ? [{id:doc.departmentSlug,slug:doc.departmentSlug,name:doc.departmentName ?? ''}] : [])).map(d=><Link key={d.id} href={`/${locale}/departments/${d.slug}`} className="rounded-full bg-brand-soft px-4 py-1.5 text-sm font-bold text-brand-deep">{d.name}</Link>)}</div>
           </div>
         </div>
       </section>

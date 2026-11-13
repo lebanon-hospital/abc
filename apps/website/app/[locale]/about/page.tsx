@@ -1,3 +1,4 @@
+import { BookingButton } from '../components/booking-provider'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { ArrowUpRight, Award, Building2, HeartPulse, Microscope, ShieldCheck, Stethoscope, Syringe, Users } from 'lucide-react'
@@ -163,7 +164,7 @@ export default async function AboutPage({
         <h2>{ar ? 'جاهزون لرعايتك' : 'Ready to care for you'}</h2>
         <p>{ar ? 'اطلب موعدك وسيتواصل معك فريقنا لتأكيد الزيارة.' : 'Request an appointment and our team will call you to confirm your visit.'}</p>
         <div className="about-cta-actions">
-          <a href={`tel:${site.hotline}`} dir="ltr" className="home-about-cta">{site.hotline}</a>
+          <BookingButton locale={locale} className="home-about-cta" />
           <Link href={`/${locale}/doctors`} className="about-cta-secondary">
             {ar ? 'تعرف على أطبائنا' : 'Meet our doctors'}
             <ArrowUpRight size={17} className="rtl:-rotate-90" />

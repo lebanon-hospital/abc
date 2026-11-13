@@ -13,7 +13,7 @@ export function PaymentFields({ locale, paymentType, insuranceCompany, onPayment
   const [companies, setCompanies] = useState<Option[]>([])
   useEffect(() => {
     const controller = new AbortController()
-    fetch(`${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/v1'}/content/partners?locale=${locale}`, { signal: controller.signal })
+    fetch(`/api/partners?locale=${locale}`, { signal: controller.signal })
       .then(res => res.ok ? res.json() : Promise.reject())
       .then((body: { data: { name: string; category: string }[] }) => setCompanies(body.data.filter(item => item.category === 'insurance').map(item => ({ value: item.name, label: item.name }))))
       .catch(() => {})

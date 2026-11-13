@@ -17,6 +17,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
+import { SpecialtySelect } from '@/components/shared/specialty-select'
 import { ImageInput } from '@/components/shared/image-input'
 import { RichTextEditor } from '@/components/shared/richtext-editor'
 
@@ -30,6 +31,7 @@ type Doctor = {
   contentAr?: string | null
   contentEn?: string | null
   photoUrl: string | null
+  departmentIds: string[]
   departmentId: string | null
   departmentName?: string | null
   sortOrder: number
@@ -52,7 +54,7 @@ type DoctorForm = {
   contentAr: string
   contentEn: string
   photoUrl: string
-  departmentId: string
+  departmentIds: string[]
   sortOrder: string
   status: string
   schedule: ScheduleRule[]
@@ -60,7 +62,7 @@ type DoctorForm = {
 
 const emptyForm: DoctorForm = {
   slug: '', nameAr: '', nameEn: '', titleAr: '', titleEn: '',
-  contentAr: '', contentEn: '', photoUrl: '', departmentId: '',
+  contentAr: '', contentEn: '', photoUrl: '', departmentIds: [],
   sortOrder: '0', status: 'published', schedule: [],
 }
 
@@ -117,7 +119,7 @@ export function DoctorEditPage() {
       contentAr: doc.contentAr ?? '',
       contentEn: doc.contentEn ?? '',
       photoUrl: doc.photoUrl ?? '',
-      departmentId: doc.departmentId ?? '',
+      departmentIds: doc.departmentIds ?? (doc.departmentId ? [doc.departmentId] : []),
       sortOrder: String(doc.sortOrder),
       status: doc.status,
       schedule: [],
@@ -148,7 +150,7 @@ export function DoctorEditPage() {
         contentAr: form.contentAr || undefined,
         contentEn: form.contentEn || undefined,
         photoUrl: form.photoUrl || undefined,
-        departmentId: form.departmentId || null,
+        departmentIds: form.departmentIds,
         sortOrder: Number(form.sortOrder) || 0,
         status: form.status,
       }
@@ -193,7 +195,7 @@ export function DoctorEditPage() {
 
   const BackIcon = dir === 'rtl' ? ArrowRight : ArrowLeft
   const departments = departmentsQuery.data?.data ?? []
-  const departmentName = departments.find((d) => d.id === form.departmentId)?.nameAr ?? null
+  const departmentName = departments.filter(d => form.departmentIds.includes(d.id)).map(d => d.nameAr).join('، ')
   const ar = tab === 'ar'
   const previewName = ar ? form.nameAr : form.nameEn
   const previewTitle = ar ? form.titleAr : form.titleEn
@@ -295,16 +297,7 @@ export function DoctorEditPage() {
               </div>
               <div className="space-y-2">
                 <Label>{t('departments.title')}</Label>
-                <Select value={form.departmentId || 'none'}
-                  onValueChange={(v) => setForm((f) => ({ ...f, departmentId: v === 'none' ? '' : (v ?? '') }))}>
-                  <SelectTrigger className="w-full"><SelectValue placeholder="—" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">—</SelectItem>
-                    {departments.map((d) => (
-                      <SelectItem key={d.id} value={d.id} dir="rtl">{d.nameAr}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SpecialtySelect options={departments} value={form.departmentIds} onChange={departmentIds=>setForm(f=>({...f,departmentIds}))} ar={dir==='rtl'}/>
               </div>
               <div className="space-y-2">
                 <Label>{t('doctors.photo')}</Label>

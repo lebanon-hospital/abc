@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { Cairo, Source_Sans_3 } from 'next/font/google'
 import { dir, getDictionary, isLocale, locales, type Locale } from '@/lib/i18n'
+import { BookingProvider } from './components/booking-provider'
 import { MobileBottomNav } from './components/mobile-bottom-nav'
 import { SiteHeader } from './components/site-header'
 import { Topbar } from './components/topbar'
@@ -54,6 +55,7 @@ export default async function LocaleLayout({
       className={`${sourceSans3.variable} ${cairo.variable}`}
     >
       <body className="bg-background text-foreground antialiased">
+        <BookingProvider locale={locale}>
         <div className="flex min-h-svh flex-col">
           <Topbar locale={locale} t={t} />
           <SiteHeader locale={locale} t={t} />
@@ -62,6 +64,7 @@ export default async function LocaleLayout({
         </div>
         <MobileBottomNav locale={locale} />
         <WhatsappButton label={t.footer.whatsapp} />
+        </BookingProvider>
       </body>
     </html>
   )

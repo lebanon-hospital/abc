@@ -22,11 +22,17 @@ function localize(p: typeof posts.$inferSelect, locale: 'ar' | 'en', detail = fa
     ...(detail ? { content: ar ? p.contentAr : p.contentEn, seoTitle: ar ? p.seoTitleAr : p.seoTitleEn,
       seoDescription: ar ? p.seoDescriptionAr : p.seoDescriptionEn } : {}) }
 }
-router.openapi(createRoute({ method: 'get', path: '/', tags: ['posts'], summary: 'Published articles and news', request: { query: pageQuery.merge(localeQuery).extend({ type: z.enum(['article','news']).optional(), q: z.string().trim().max(100).optional(), category: z.string().max(100).optional() }) }, responses: { 200: { description: 'Paginated localized posts' } } }), async (c) => {
+router.openapi(createRoute({ method: 'get', path: '/', tags: ['posts'], summary: 'Published articles and news', request: { query: pageQuery.merge(localeQuery).extend({ type: z.enum(['article','news']).optional(), q: z.string().trim().max(100).optional(), category: z.string().max(2000).optional() }) }, responses: { 200: { description: 'Paginated localized posts' } } }), async (c) => {
   const { locale, page, limit, type, q, category } = c.req.valid('query')
   const clauses: SQL[] = [eq(posts.status, 'published')]
   if (type) clauses.push(eq(posts.type, type))
-  if (category) clauses.push(inArray(posts.categoryId, db.select({ id: postCategories.id }).from(postCategories).where(or(eq(postCategories.nameAr, category), eq(postCategories.nameEn, category))))!)
+  if (category) {
+    const selected = category.split(',').filter(Boolean)
+    if (selected.length) clauses.push(or(
+      inArray(posts.categoryId, db.select({ id:postCategories.id }).from(postCategories).where(or(inArray(postCategories.nameAr,selected),inArray(postCategories.nameEn,selected)))),
+      inArray(posts.categoryAr,selected), inArray(posts.categoryEn,selected),
+    )!)
+  }
   if (q) clauses.push(or(ilike(locale === 'ar' ? posts.titleAr : posts.titleEn, `%${q}%`), ilike(locale === 'ar' ? posts.excerptAr : posts.excerptEn, `%${q}%`))!)
   const where = and(...clauses)
   const [rows, [total]] = await Promise.all([db.select({ post: posts, catName: catLocale(locale) }).from(posts).leftJoin(postCategories, eq(posts.categoryId, postCategories.id)).where(where).orderBy(desc(posts.publishedAt), desc(posts.id)).limit(limit).offset((page-1)*limit), db.select({ count: sql<number>`count(*)::int` }).from(posts).where(where)])

@@ -1,10 +1,11 @@
+import { BookingButton } from '../../components/booking-provider'
 import { contentFetch } from '@/lib/content-fetch'
 import { staticSlugs } from '@/lib/static-content'
 import type { Metadata } from 'next'
 import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { Phone, ArrowUpRight } from 'lucide-react'
+import { CalendarDays, ArrowUpRight } from 'lucide-react'
 import { getDictionary, type Locale } from '@/lib/i18n'
 import { site } from '@/lib/site'
 import { DirectoryHeader } from '../../components/directory/directory-header'
@@ -67,7 +68,7 @@ export default async function DepartmentDetailPage({
         {dept.imageUrl && <div className="hospital-detail-image"><Image src={dept.imageUrl} alt={dept.name} fill sizes="(max-width: 800px) 100vw, 65vw" /></div>}
         {dept.content && <article className="prose-hospital hospital-detail-prose" dangerouslySetInnerHTML={{ __html: dept.content }} />}
       </div>
-      <aside className="hospital-visit-panel"><Phone size={28} /><h2>{ar ? 'دعنا نساعدك في ترتيب زيارتك' : 'Let us help arrange your visit'}</h2><p>{ar ? 'تواصل مع فريقنا للاستفسار عن أطباء القسم ومواعيد العيادات.' : 'Talk to our team about the department’s doctors and clinic schedules.'}</p><a href={`tel:${site.hotline}`}><Phone size={17} />{ar ? 'اتصل بنا' : 'Call our team'}<span dir="ltr">{site.hotline}</span></a><Link href={`/${locale}/contact`}>{ar ? 'أرسل استفسارك' : 'Send an inquiry'}<ArrowUpRight size={17} /></Link></aside>
+      <aside className="hospital-visit-panel"><CalendarDays size={28} /><h2>{ar ? 'دعنا نساعدك في ترتيب زيارتك' : 'Let us help arrange your visit'}</h2><p>{ar ? 'تواصل مع فريقنا للاستفسار عن أطباء القسم ومواعيد العيادات.' : 'Talk to our team about the department’s doctors and clinic schedules.'}</p><BookingButton locale={locale} departmentSlug={slug} className="booking-cta" /><Link href={`/${locale}/contact`}>{ar ? 'أرسل استفسارك' : 'Send an inquiry'}<ArrowUpRight size={17} /></Link></aside>
     </section>
     <section className="hospital-container hospital-department-team"><div className="hospital-section-title"><h2>{t.departments.doctorsIn}</h2><Link href={`/${locale}/doctors?dept=${encodeURIComponent(slug)}`}>{ar ? 'عرض أطباء القسم' : 'View department doctors'}</Link></div>{dept.doctors.length === 0 ? <p className="hospital-directory-empty">{t.departments.noDoctors}</p> : <div className="hospital-doctor-grid">{dept.doctors.map((doc) => <DoctorCard key={doc.id} doctor={{ ...doc, departmentName: dept.name }} locale={locale} />)}</div>}</section>
   </div>

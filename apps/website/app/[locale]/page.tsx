@@ -6,7 +6,7 @@ import { HomeSections } from './components/home-sections'
 import type { Locale } from '@/lib/i18n'
 
 type DeptOption = { slug: string; name: string }
-type DoctorOption = { slug: string; name: string; departmentSlug: string | null }
+type DoctorOption = { slug: string; name: string; departmentSlug: string | null; departmentSlugs?: string[] }
 
 async function getBookingOptions(locale: Locale) {
   const api = process.env.API_URL ?? 'http://localhost:3000/v1'
