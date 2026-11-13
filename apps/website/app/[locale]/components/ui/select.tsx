@@ -1,78 +1,61 @@
 'use client'
 
-import * as SelectPrimitive from '@radix-ui/react-select'
-import { Check, ChevronDown } from 'lucide-react'
 import * as React from 'react'
-import { cn } from '@/lib/utils'
+import ReactSelect from 'react-select'
 
-const Select = SelectPrimitive.Root
-const SelectValue = SelectPrimitive.Value
+type PartProps = { children?: React.ReactNode; className?: string; id?: string; value?: string; textValue?: string; disabled?: boolean; 'aria-label'?: string; 'aria-invalid'?: boolean }
+type Option = { value: string; label: string; content: React.ReactNode }
 
-function SelectTrigger({
-  className,
-  children,
-  ...props
-}: React.ComponentProps<typeof SelectPrimitive.Trigger>) {
-  return (
-    <SelectPrimitive.Trigger
-      className={cn(
-        'flex h-11 w-full items-center justify-between gap-2 rounded-lg border border-border bg-background px-3.5 text-sm outline-none transition-colors focus:border-brand focus:ring-2 focus:ring-brand/30 disabled:opacity-50',
-        className,
-      )}
-      {...props}
-    >
-      {children}
-      <SelectPrimitive.Icon asChild>
-        <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
-      </SelectPrimitive.Icon>
-    </SelectPrimitive.Trigger>
-  )
+// These parts keep the existing declarative API for options and labels.
+function SelectTrigger(_props: PartProps) { return null }
+function SelectContent(_props: PartProps) { return null }
+function SelectItem(_props: PartProps) { return null }
+function SelectValue(_props: PartProps) { return null }
+
+function plainText(node: React.ReactNode): string {
+  return React.Children.toArray(node).map((child) => React.isValidElement<PartProps>(child) ? plainText(child.props.children) : String(child)).join('')
 }
 
-function SelectContent({
-  className,
-  children,
-  position = 'popper',
-  ...props
-}: React.ComponentProps<typeof SelectPrimitive.Content>) {
-  return (
-    <SelectPrimitive.Portal>
-      <SelectPrimitive.Content
-        position={position}
-        className={cn(
-          'z-50 max-h-72 min-w-[8rem] overflow-hidden rounded-lg border border-border bg-card p-1 text-card-foreground shadow-md',
-          'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
-          className,
-        )}
-        {...props}
-      >
-        <SelectPrimitive.Viewport className="max-h-72 overflow-y-auto">{children}</SelectPrimitive.Viewport>
-      </SelectPrimitive.Content>
-    </SelectPrimitive.Portal>
-  )
-}
-
-function SelectItem({
-  className,
-  children,
-  ...props
-}: React.ComponentProps<typeof SelectPrimitive.Item>) {
-  return (
-    <SelectPrimitive.Item
-      className={cn(
-        'relative flex cursor-pointer select-none items-center gap-2 rounded-md py-2 pe-3 ps-8 text-sm outline-none transition-colors focus:bg-muted data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
-        className,
-      )}
-      {...props}
-    >
-      <span className="absolute start-2 flex size-4 items-center justify-center">
-        <SelectPrimitive.ItemIndicator>
-          <Check className="size-4 text-brand-deep" />
-        </SelectPrimitive.ItemIndicator>
-      </span>
-      <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
-    </SelectPrimitive.Item>
-  )
+function Select({ children, value, onValueChange, disabled, dir = 'ltr' }: {
+  children: React.ReactNode; value?: string; onValueChange?: (value: string) => void; disabled?: boolean; dir?: 'ltr' | 'rtl'
+}) {
+  const parts = React.Children.toArray(children).filter(React.isValidElement<PartProps>)
+  const trigger = parts.find((part) => part.type === SelectTrigger)?.props
+  const content = parts.find((part) => part.type === SelectContent)?.props
+  const options: Option[] = React.Children.toArray(content?.children).filter(React.isValidElement<PartProps>).map((part) => ({
+    value: part.props.value ?? '', label: part.props.textValue ?? plainText(part.props.children), content: part.props.children,
+  }))
+  const customValue = React.Children.toArray(trigger?.children).find((part) => React.isValidElement<PartProps>(part) && part.type === SelectValue)
+  const display = React.isValidElement<PartProps>(customValue) ? customValue.props.children : undefined
+  const generatedId = React.useId()
+  const ar = dir === 'rtl'
+  return <ReactSelect<Option>
+    instanceId={generatedId}
+    inputId={trigger?.id}
+    aria-label={trigger?.['aria-label']}
+    aria-invalid={trigger?.['aria-invalid']}
+    className={`searchable-select ${trigger?.className ?? ''}`}
+    classNamePrefix="searchable-select"
+    isRtl={ar}
+    isSearchable
+    components={{ IndicatorSeparator: null }}
+    isDisabled={disabled}
+    options={options}
+    value={options.find((option) => option.value === value) ?? null}
+    onChange={(option) => { if (option) onValueChange?.(option.value) }}
+    formatOptionLabel={(option, meta) => meta.context === 'value' && display ? display : option.content}
+    placeholder={ar ? 'ابحث أو اختر' : 'Search or select'}
+    noOptionsMessage={() => ar ? 'لا توجد نتائج' : 'No results found'}
+    menuPlacement="auto"
+    styles={{
+      control: (base, state) => ({ ...base, minHeight: 47, height: '100%', borderRadius: 6, backgroundColor: state.isDisabled ? '#f2f1ec' : '#fff', borderColor: state.isFocused ? '#b8934f' : '#dfdfd7', boxShadow: state.isFocused ? '0 0 0 2px #b8934f30' : 'none', fontSize: 13 }),
+      input: (base) => ({ ...base, color: '#252c28' }),
+      singleValue: (base) => ({ ...base, color: '#252c28' }),
+      placeholder: (base) => ({ ...base, color: '#6e746e' }),
+      menu: (base) => ({ ...base, width: '100%', minWidth: '100%', zIndex: 60, backgroundColor: '#fff', color: '#252c28' }),
+      option: (base, state) => ({ ...base, color: '#252c28', backgroundColor: state.isSelected ? '#f3e9d9' : state.isFocused ? '#f7f3ec' : '#fff', cursor: 'pointer', fontSize: 14 }),
+    }}
+  />
 }
 
 export { Select, SelectContent, SelectItem, SelectTrigger, SelectValue }

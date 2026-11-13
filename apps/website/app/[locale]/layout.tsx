@@ -2,12 +2,11 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { Cairo, Source_Sans_3 } from 'next/font/google'
 import { dir, getDictionary, isLocale, locales, type Locale } from '@/lib/i18n'
+import { MobileBottomNav } from './components/mobile-bottom-nav'
 import { SiteHeader } from './components/site-header'
 import { Topbar } from './components/topbar'
 import { SiteFooter } from './components/site-footer'
 import { WhatsappButton } from './components/whatsapp-button'
-import { SmoothScroll } from './components/smooth-scroll'
-import { AosInit } from './components/aos-init'
 import '../globals.css'
 
 // Matches the current ABC site (abchospitaleg.com):
@@ -55,15 +54,13 @@ export default async function LocaleLayout({
       className={`${sourceSans3.variable} ${cairo.variable}`}
     >
       <body className="bg-background text-foreground antialiased">
-      <SmoothScroll>
-        <AosInit />
         <div className="flex min-h-svh flex-col">
           <Topbar locale={locale} t={t} />
           <SiteHeader locale={locale} t={t} />
           <main className="flex-1">{children}</main>
           <SiteFooter locale={locale} t={t} />
         </div>
-      </SmoothScroll>
+        <MobileBottomNav locale={locale} />
         <WhatsappButton label={t.footer.whatsapp} />
       </body>
     </html>

@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { Dictionary, Locale } from '@/lib/i18n'
 import { formatTime } from '@/lib/time'
 import { cn } from '@/lib/utils'
+import { PaymentFields } from '../ui/payment-fields'
 import { PhoneInput } from '../ui/phone-input'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/v1'
@@ -61,6 +62,8 @@ export function SlotBooking({
   const [name, setName] = useState('')
   const [country, setCountry] = useState<CountryCode>('EG')
   const [phone, setPhone] = useState('')
+  const [paymentType, setPaymentType] = useState('cash')
+  const [insuranceCompany, setInsuranceCompany] = useState('')
   const [phoneError, setPhoneError] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [sent, setSent] = useState(false)
@@ -97,7 +100,7 @@ export function SlotBooking({
     const parsed = parsePhoneNumberFromString(phone, country)
     const valid = Boolean(parsed?.isValid())
     setPhoneError(!valid)
-    if (!valid || !slot || loadingSlots || name.trim().length < 2 || submitting) return
+    if ((paymentType === 'insurance' && !insuranceCompany.trim()) || !valid || !slot || loadingSlots || name.trim().length < 2 || submitting) return
 
     setSubmitting(true)
     try {
@@ -107,6 +110,8 @@ export function SlotBooking({
         body: JSON.stringify({
           patientName: name.trim(),
           phone: parsed?.number ?? phone,
+          paymentType,
+          insuranceCompany: paymentType === 'insurance' ? insuranceCompany.trim() : undefined,
           doctorSlug,
           date,
           time: slot,
@@ -229,7 +234,7 @@ export function SlotBooking({
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
-                className="space-y-3 overflow-hidden"
+                className="space-y-3"
               >
                 <p className="rounded-lg bg-brand-soft p-3 font-bold" role="status">{new Date(`${date}T12:00:00`).toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} · <bdi>{formatTime(slot, locale)}</bdi></p>
                 <h3 className="font-bold">{ar ? '٣. بيانات التواصل' : '3. Your details'}</h3>
@@ -253,6 +258,7 @@ export function SlotBooking({
                   onChange={setPhone}
                   invalid={phoneError}
                 />
+                <div className="grid gap-3 sm:grid-cols-2"><PaymentFields locale={locale} paymentType={paymentType} insuranceCompany={insuranceCompany} onPaymentChange={setPaymentType} onCompanyChange={setInsuranceCompany} /></div>
                 {phoneError && (
                   <p className="text-xs text-destructive">
                     {ar ? 'أدخل رقم هاتف صحيح.' : 'Enter a valid phone number.'}
@@ -266,7 +272,7 @@ export function SlotBooking({
                 <button
                   type="button"
                   onClick={submit}
-                  disabled={submitting || name.trim().length < 2}
+                  disabled={submitting || name.trim().length < 2 || (paymentType === 'insurance' && !insuranceCompany.trim())}
                   className="flex items-center gap-2 rounded-lg bg-brand px-6 py-3 text-sm font-bold text-brand-foreground transition-colors hover:bg-brand-strong disabled:opacity-60"
                 >
                   {submitting && <Loader2 className="size-4 animate-spin" />}

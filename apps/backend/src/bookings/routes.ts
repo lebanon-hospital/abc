@@ -17,6 +17,8 @@ const STATUSES = ['new', 'contacted', 'confirmed', 'declined', 'cancelled', 'com
 /* ---------------------------------- public --------------------------------- */
 
 const requestSchema = z.object({
+  paymentType: z.enum(['cash', 'insurance']).default('cash'),
+  insuranceCompany: z.string().trim().min(1).max(120).optional(),
   patientName: z.string().trim().min(2).max(120),
   phone: z.string().trim().min(5).max(20),
   departmentSlug: z.string().trim().max(80).optional(),
@@ -45,6 +47,8 @@ const createRequestRoute = createRoute({
 bookingsRouter.openapi(createRequestRoute, async (c) => {
   const body = c.req.valid('json')
 
+  if (body.paymentType === 'insurance' && !body.insuranceCompany) return c.json({ error: 'Insurance company is required' }, 400)
+
   const phone = normalizePhone(body.phone)
   if (!phone) return c.json({ error: 'Invalid phone number' }, 400)
 
@@ -72,6 +76,8 @@ bookingsRouter.openapi(createRequestRoute, async (c) => {
   const [row] = await db
     .insert(bookings)
     .values({
+      paymentType: body.paymentType,
+      insuranceCompany: body.paymentType === 'insurance' ? body.insuranceCompany : null,
       patientName: body.patientName,
       phone,
       source: 'website',
@@ -172,6 +178,8 @@ bookingsRouter.openapi(listRoute, async (c) => {
 })
 
 const manualSchema = z.object({
+  paymentType: z.enum(['cash', 'insurance']).default('cash'),
+  insuranceCompany: z.string().trim().min(1).max(120).optional(),
   patientName: z.string().trim().min(2).max(120),
   phone: z.string().trim().min(5).max(20),
   source: z.enum(['walk_in', 'phone']),
@@ -195,12 +203,16 @@ bookingsRouter.openapi(manualRoute, async (c) => {
   const body = c.req.valid('json')
   const user = c.get('user')
 
+  if (body.paymentType === 'insurance' && !body.insuranceCompany) return c.json({ error: 'Insurance company is required' }, 400)
+
   const phone = normalizePhone(body.phone)
   if (!phone) return c.json({ error: 'Invalid phone number' }, 400)
 
   const [row] = await db
     .insert(bookings)
     .values({
+      paymentType: body.paymentType,
+      insuranceCompany: body.paymentType === 'insurance' ? body.insuranceCompany : null,
       patientName: body.patientName,
       phone,
       source: body.source,
@@ -225,6 +237,8 @@ bookingsRouter.openapi(manualRoute, async (c) => {
 })
 
 const updateSchema = z.object({
+  paymentType: z.enum(['cash', 'insurance']).optional(),
+  insuranceCompany: z.string().trim().min(1).max(120).nullable().optional(),
   status: z.enum(STATUSES).optional(),
   appointmentDate: z.string().trim().max(10).nullable().optional(),
   appointmentTime: z.string().trim().max(5).nullable().optional(),
@@ -252,9 +266,15 @@ bookingsRouter.openapi(updateRoute, async (c) => {
   const body = c.req.valid('json')
   const user = c.get('user')
 
+  const [existing] = await db.select().from(bookings).where(eq(bookings.id, id)).limit(1)
+  if (!existing) return c.json({ error: 'Not found' }, 404)
+  const paymentType = body.paymentType ?? existing.paymentType
+  const insuranceCompany = body.insuranceCompany === undefined ? existing.insuranceCompany : body.insuranceCompany
+  if (paymentType === 'insurance' && !insuranceCompany) return c.json({ error: 'Insurance company is required' }, 400)
+
   const [row] = await db
     .update(bookings)
-    .set({ ...body, updatedAt: new Date() })
+    .set({ ...body, insuranceCompany: paymentType === 'insurance' ? insuranceCompany : null, updatedAt: new Date() })
     .where(eq(bookings.id, id))
     .returning()
   if (!row) return c.json({ error: 'Not found' }, 404)

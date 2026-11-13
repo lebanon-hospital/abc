@@ -77,7 +77,7 @@ export function SearchModal({ open, onClose, locale, t }: Props) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -16, scale: 0.98 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
-            className="w-full max-w-xl overflow-hidden rounded-xl border border-border bg-card shadow-xl"
+            className="w-full max-w-xl overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-xl"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal
@@ -94,7 +94,7 @@ export function SearchModal({ open, onClose, locale, t }: Props) {
                   setSelected(null)
                 }}
                 placeholder={t.header.searchPlaceholder}
-                className="h-13 w-full bg-transparent py-4 text-base outline-none placeholder:text-muted-foreground"
+                className="h-13 w-full bg-transparent py-4 text-base text-card-foreground caret-current outline-none placeholder:text-muted-foreground"
               />
               <button
                 type="button"

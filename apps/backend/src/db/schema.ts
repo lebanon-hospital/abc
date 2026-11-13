@@ -158,6 +158,8 @@ export const bookings = pgTable(
     doctorId: uuid('doctor_id').references(() => doctors.id, { onDelete: 'set null' }),
     preferredDate: text('preferred_date'), // free-text/date from the patient
     patientNotes: text('patient_notes'),
+    paymentType: text('payment_type').default('cash').notNull(), // cash | insurance
+    insuranceCompany: text('insurance_company'),
     // lifecycle: new → contacted → confirmed → completed (or declined/cancelled)
     status: text('status').default('new').notNull(), // new | contacted | confirmed | declined | cancelled | completed
     // agreed appointment (filled by staff)

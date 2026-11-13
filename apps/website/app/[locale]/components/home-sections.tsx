@@ -61,7 +61,7 @@ export async function HomeSections({ locale }: { locale: Locale }) {
           <div className="home-about-actions">
             <Link href={`/${locale}/departments`} className="home-about-cta">
               {ar ? 'استكشف أقسامنا' : 'Explore departments'}
-              <ArrowUpRight size={18} className="rtl:-scale-x-100" />
+              <ArrowUpRight size={18} className="rtl:-rotate-90" />
             </Link>
             <a href={`tel:${site.hotline}`} dir="ltr" className="home-about-phone">
               {site.hotline}
@@ -113,7 +113,7 @@ export async function HomeSections({ locale }: { locale: Locale }) {
                   {dept.description && <p>{dept.description}</p>}
                   <span className="hospital-department-action">
                     {ar ? 'تعرف على القسم' : 'Explore department'}
-                    <ArrowUpRight size={17} className="rtl:-scale-x-100" />
+                    <ArrowUpRight size={17} className="rtl:-rotate-90" />
                   </span>
                 </div>
               </Link>

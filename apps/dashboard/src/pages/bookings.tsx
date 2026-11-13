@@ -26,6 +26,8 @@ import { DEFAULT_PAGE_SIZE, TablePagination } from '@/components/shared/table-pa
 
 type Booking = {
   id: string
+  paymentType: 'cash' | 'insurance'
+  insuranceCompany: string | null
   patientName: string
   phone: string
   source: 'website' | 'walk_in' | 'phone'
@@ -51,6 +53,8 @@ const STATUSES = ['new', 'contacted', 'confirmed', 'completed', 'declined', 'can
 
 
 type ManualForm = {
+  paymentType: 'cash' | 'insurance'
+  insuranceCompany: string
   patientName: string
   phone: string
   source: 'walk_in' | 'phone'
@@ -61,6 +65,8 @@ type ManualForm = {
 }
 
 const emptyManual: ManualForm = {
+  paymentType: 'cash',
+  insuranceCompany: '',
   patientName: '',
   phone: '',
   source: 'walk_in',
@@ -71,7 +77,8 @@ const emptyManual: ManualForm = {
 }
 
 export function BookingsPage() {
-  const { t, tLabel } = useI18n()
+  const { t, tLabel, locale } = useI18n()
+  const ar = locale === 'ar'
   const queryClient = useQueryClient()
 
   const [page, setPage] = useState(1)
@@ -79,6 +86,8 @@ export function BookingsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [sourceFilter, setSourceFilter] = useState<string>('all')
   const [detail, setDetail] = useState<Booking | null>(null)
+  const [detailPayment, setDetailPayment] = useState<'cash' | 'insurance'>('cash')
+  const [detailCompany, setDetailCompany] = useState('')
   const [detailNotes, setDetailNotes] = useState('')
   const [detailDate, setDetailDate] = useState('')
   const [detailTime, setDetailTime] = useState('')
@@ -103,6 +112,8 @@ export function BookingsPage() {
     placeholderData: keepPreviousData,
   })
 
+  const partnersQuery = useQuery({ queryKey: ['booking-insurance', locale], queryFn: () => api<{ data: { name: string; category: string }[] }>(`/content/partners?locale=${locale}`) })
+
   const invalidate = () => void queryClient.invalidateQueries({ queryKey: ['bookings'] })
 
   const statusMutation = useMutation({
@@ -123,6 +134,8 @@ export function BookingsPage() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          paymentType: detailPayment,
+          insuranceCompany: detailPayment === 'insurance' ? detailCompany.trim() : null,
           appointmentDate: detailDate || null,
           appointmentTime: detailTime || null,
           staffNotes: detailNotes || null,
@@ -143,6 +156,8 @@ export function BookingsPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          paymentType: manual.paymentType,
+          insuranceCompany: manual.paymentType === 'insurance' ? manual.insuranceCompany.trim() : undefined,
           patientName: manual.patientName.trim(),
           phone: manual.phone,
           source: manual.source,
@@ -163,10 +178,19 @@ export function BookingsPage() {
   })
 
   function openDetail(b: Booking) {
+    setDetailPayment(b.paymentType ?? 'cash')
+    setDetailCompany(b.insuranceCompany ?? '')
     setDetail(b)
     setDetailNotes(b.staffNotes ?? '')
     setDetailDate(b.appointmentDate ?? '')
     setDetailTime(b.appointmentTime ?? '')
+  }
+
+  function paymentFields(value: 'cash' | 'insurance', company: string, change: (value: 'cash' | 'insurance') => void, changeCompany: (value: string) => void, prefix: string) {
+    return <div className="grid gap-3 sm:grid-cols-2">
+      <div className="space-y-2"><Label htmlFor={`${prefix}-payment`}>{ar ? 'طريقة الدفع' : 'Payment method'}</Label><Select value={value} onValueChange={v => { change(v === 'insurance' ? 'insurance' : 'cash'); changeCompany('') }}><SelectTrigger id={`${prefix}-payment`} className="w-full"><SelectValue>{value === 'insurance' ? (ar ? 'تأمين' : 'Insurance') : (ar ? 'نقدي' : 'Cash')}</SelectValue></SelectTrigger><SelectContent><SelectItem value="cash">{ar ? 'نقدي' : 'Cash'}</SelectItem><SelectItem value="insurance">{ar ? 'تأمين' : 'Insurance'}</SelectItem></SelectContent></Select></div>
+      {value === 'insurance' && <div className="space-y-2"><Label htmlFor={`${prefix}-company`}>{ar ? 'شركة التأمين' : 'Insurance company'}</Label><Input id={`${prefix}-company`} list={`${prefix}-companies`} value={company} maxLength={120} required onChange={e => changeCompany(e.target.value)} placeholder={ar ? 'اختر أو اكتب اسم الشركة' : 'Select or type a company'} /><datalist id={`${prefix}-companies`}>{partnersQuery.data?.data.filter(p => p.category === 'insurance').map(p => <option key={p.name} value={p.name} />)}</datalist></div>}
+    </div>
   }
 
   const statusBadge = (status: string) => {
@@ -224,6 +248,7 @@ export function BookingsPage() {
             <TableRow>
               <TableHead>{t('submissions.name')}</TableHead>
               <TableHead>{t('submissions.phone')}</TableHead>
+              <TableHead>{ar ? 'الدفع / شركة التأمين' : 'Payment / insurance company'}</TableHead>
               <TableHead>{t('departments.title')}</TableHead>
               <TableHead>{t('doctors.title')}</TableHead>
               <TableHead>{t('submissions.status')}</TableHead>
@@ -236,14 +261,14 @@ export function BookingsPage() {
             {listQuery.isLoading ? (
               [...Array(3)].map((_, i) => (
                 <TableRow key={i}>
-                  {[...Array(8)].map((_, j) => (
+                  {[...Array(9)].map((_, j) => (
                     <TableCell key={j}><Skeleton className="h-5 w-full" /></TableCell>
                   ))}
                 </TableRow>
               ))
             ) : rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+                <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">
                   {t('bookings.none')}
                 </TableCell>
               </TableRow>
@@ -272,6 +297,7 @@ export function BookingsPage() {
                       </a>
                     </div>
                   </TableCell>
+                  <TableCell>{b.paymentType === 'insurance' ? `${ar ? 'تأمين' : 'Insurance'} — ${b.insuranceCompany ?? '—'}` : (ar ? 'نقدي' : 'Cash')}</TableCell>
                   <TableCell dir="rtl">{b.departmentNameAr ?? '—'}</TableCell>
                   <TableCell dir="rtl">{b.doctorNameAr ?? '—'}</TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>
@@ -333,6 +359,7 @@ export function BookingsPage() {
                   <span>{t('bookings.preferred')}: {detail.preferredDate}</span>
                 )}
               </div>
+              {paymentFields(detailPayment, detailCompany, setDetailPayment, setDetailCompany, 'detail')}
               {detail.patientNotes && (
                 <p className="rounded-lg border bg-muted/50 p-3 text-sm leading-relaxed">{detail.patientNotes}</p>
               )}
@@ -355,7 +382,7 @@ export function BookingsPage() {
 
               <DialogFooter>
                 <Button variant="outline" onClick={() => setDetail(null)}>{t('common.cancel')}</Button>
-                <Button onClick={() => detailMutation.mutate()} disabled={detailMutation.isPending}>
+                <Button onClick={() => detailMutation.mutate()} disabled={detailMutation.isPending || (detailPayment === 'insurance' && !detailCompany.trim())}>
                   {detailMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
                   {t('common.save')}
                 </Button>
@@ -383,6 +410,7 @@ export function BookingsPage() {
               <Label>{t('submissions.phone')}</Label>
               <PhoneInput value={manual.phone} onChange={(v) => setManual((m) => ({ ...m, phone: v }))} />
             </div>
+            {paymentFields(manual.paymentType, manual.insuranceCompany, value => setManual(m => ({ ...m, paymentType: value })), value => setManual(m => ({ ...m, insuranceCompany: value })), 'manual')}
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>{t('bookings.source.label')}</Label>

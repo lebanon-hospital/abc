@@ -1,203 +1,81 @@
 'use client'
 
-import { AnimatePresence, motion } from 'framer-motion'
-import { Check, ChevronDown, Menu, Phone, X } from 'lucide-react'
+import { ArrowUpRight, BookOpen, Building2, Globe2, Menu, Newspaper, Search } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { locales, type Dictionary, type Locale } from '@/lib/i18n'
-import { site } from '@/lib/site'
 import { cn } from '@/lib/utils'
 import { EmergencyButton } from './emergency-button'
-import {
-  DropdownMenu,
-  DropdownMenuCheck,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from './ui/dropdown-menu'
+import { SearchModal } from './search-modal'
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from './ui/sheet'
 
 type Props = { locale: Locale; t: Dictionary }
 
 export function SiteHeader({ locale, t }: Props) {
   const [open, setOpen] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
   const pathname = usePathname()
   const homeHref = `/${locale}`
-
+  const ar = locale === 'ar'
   const links = [
     { href: homeHref, label: t.nav.home, exact: true },
     { href: `${homeHref}/departments`, label: t.nav.departments },
     { href: `${homeHref}/doctors`, label: t.nav.doctors },
-    { href: `${homeHref}/about`, label: locale === 'ar' ? 'من نحن' : 'About' },
-    { href: `${homeHref}/blog`, label: locale === 'ar' ? 'المدونة' : 'Blog' },
+    { href: `${homeHref}/about`, label: ar ? 'من نحن' : 'About' },
+    { href: `${homeHref}/blog`, label: ar ? 'المدونة' : 'Blog' },
     { href: `${homeHref}/news`, label: t.nav.news },
     { href: `${homeHref}/contact`, label: t.nav.contact },
   ]
-
-  const isActive = (href: string, exact?: boolean) =>
-    exact ? pathname === href : pathname.startsWith(href)
-
-  // Close the menu whenever the route changes
+  const moreLinks = [
+    { href: `${homeHref}/about`, label: ar ? 'عن المستشفى' : 'About the hospital', Icon: Building2 },
+    { href: `${homeHref}/blog`, label: ar ? 'المقالات الطبية' : 'Health articles', Icon: BookOpen },
+    { href: `${homeHref}/news`, label: t.nav.news, Icon: Newspaper },
+  ]
+  const isActive = (href: string, exact?: boolean) => exact ? pathname === href : pathname.startsWith(href)
+  useEffect(() => { setOpen(false); setSearchOpen(false) }, [pathname])
   useEffect(() => {
-    setOpen(false)
-  }, [pathname])
+    const query = window.matchMedia('(min-width:1024px)')
+    const closeOnDesktop = () => { if (query.matches) setOpen(false) }
+    query.addEventListener('change', closeOnDesktop)
+    return () => query.removeEventListener('change', closeOnDesktop)
+  }, [])
 
-  // While open: close on Escape and on user scroll gestures.
-  // Deliberately wheel/touchmove (not 'scroll') — the menu's own height
-  // animation emits scroll events that would instantly close it.
-  useEffect(() => {
-    if (!open) return
-
-    const close = () => setOpen(false)
-    const onWheel = (e: WheelEvent) => {
-      if (Math.abs(e.deltaY) > 2) close()
-    }
-    const onKeydown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close()
-    }
-
-    window.addEventListener('wheel', onWheel, { passive: true })
-    window.addEventListener('touchmove', close, { passive: true })
-    window.addEventListener('keydown', onKeydown)
-    return () => {
-      window.removeEventListener('wheel', onWheel)
-      window.removeEventListener('touchmove', close)
-      window.removeEventListener('keydown', onKeydown)
-    }
-  }, [open])
-
-  const localeSwitch = (l: string) => {
-    const segments = (pathname || `/${locale}`).split('/')
-    segments[1] = l
-    window.location.assign(segments.join('/') || `/${l}`)
-  }
-
-  return (
-    <>
-      {/* Backdrop: closes the mobile menu on any outside tap */}
-      <AnimatePresence>
-        {open && (
-          <motion.button
-            type="button"
-            aria-label={t.header.close}
-            tabIndex={-1}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            onClick={() => setOpen(false)}
-            className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px] lg:hidden"
-          />
-        )}
-      </AnimatePresence>
-
-      <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur">
-        <div className="mx-auto grid h-16 max-w-7xl grid-cols-[auto_1fr_auto] items-center gap-4 px-4">
-          {/* Logo */}
-          <Link prefetch={true} href={homeHref} className="flex items-center" aria-label={t.siteName}>
-            <Image
-              src="/abc-logo.webp"
-              alt={t.siteName}
-              width={64}
-              height={64}
-              style={{ width: 'auto', height: '3rem' }}
-              priority
-            />
-          </Link>
-
-          {/* Centered desktop nav */}
-          <nav className="hidden items-center justify-center gap-7 lg:flex">
-            {links.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  'text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground',
-                  isActive(item.href, item.exact) && 'text-brand-deep hover:text-brand-deep',
-                )}
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-
-          {/* End side: emergency (desktop) / language + burger (mobile) */}
-          <div className="flex items-center justify-end gap-2">
-            <div className="hidden lg:flex">
-              <EmergencyButton t={t} />
-            </div>
-
-            {/* Mobile-only language switch (topbar is desktop-only) */}
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-2 text-xs font-semibold uppercase outline-none transition-colors hover:bg-muted lg:hidden"
-                aria-label={t.header.language}
-              >
-                {locale}
-                <ChevronDown className="size-3 text-muted-foreground" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuLabel>{t.header.language}</DropdownMenuLabel>
-                {locales.map((l) => (
-                  <DropdownMenuItem key={l} onSelect={() => localeSwitch(l)}>
-                    <DropdownMenuCheck checked={l === locale} />
-                    {l === 'ar' ? 'العربية' : 'English'}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            <button
-              type="button"
-              onClick={() => setOpen((v) => !v)}
-              className="rounded-lg p-2 lg:hidden"
-              aria-label={open ? t.header.close : t.header.menu}
-              aria-expanded={open}
-            >
-              {open ? <X className="size-5" /> : <Menu className="size-5" />}
-            </button>
-          </div>
+  return <>
+    <header className="site-header sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 lg:grid lg:grid-cols-[auto_1fr_auto]">
+        <Link prefetch href={homeHref} className="flex shrink-0 items-center" aria-label={t.siteName}>
+          <Image src="/abc-logo.webp" alt={t.siteName} width={64} height={64} className="h-10 w-auto lg:h-12" priority />
+        </Link>
+        <nav aria-label={ar ? 'التنقل الرئيسي' : 'Main navigation'} className="hidden items-center justify-center gap-7 lg:flex">
+          {links.map(item => <Link prefetch={true} key={item.href} href={item.href} aria-current={isActive(item.href, item.exact) ? 'page' : undefined} className={cn('text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground', isActive(item.href, item.exact) && 'text-brand-deep hover:text-brand-deep')}>{item.label}</Link>)}
+        </nav>
+        <div className="hidden lg:flex"><EmergencyButton t={t} /></div>
+        <div className="flex items-center gap-1 lg:hidden">
+          <button type="button" onClick={() => setSearchOpen(true)} className="mobile-header-action" aria-label={t.header.search}><Search size={21} strokeWidth={1.8} /></button>
+          <button type="button" onClick={() => setOpen(true)} className="mobile-header-action" aria-label={t.header.menu} aria-expanded={open} aria-haspopup="dialog"><Menu size={23} strokeWidth={1.8} /></button>
         </div>
-
-        {/* Mobile menu */}
-        <AnimatePresence initial={false}>
-          {open && (
-            <motion.nav
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.2, ease: 'easeOut' }}
-              className="overflow-hidden border-t border-border bg-background lg:hidden"
-            >
-              <div className="flex flex-col gap-1 px-4 py-3">
-                {links.map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={cn(
-                      'rounded-lg px-3 py-2.5 text-sm font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground',
-                      isActive(item.href, item.exact) && 'bg-muted text-brand-deep',
-                    )}
-                  >
-                    {item.label}
-                  </Link>
-                ))}
-
-                <EmergencyButton t={t} className="mt-2 justify-center py-2.5" />
-                <a
-                  href={`tel:${site.hotline}`}
-                  className="flex items-center justify-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-semibold"
-                >
-                  <Phone className="size-4" />
-                  {t.actions.call} — {site.hotline}
-                </a>
-              </div>
-            </motion.nav>
-          )}
-        </AnimatePresence>
-      </header>
-    </>
-  )
+      </div>
+    </header>
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetContent className="mobile-more-sheet lg:hidden" dir={ar ? 'rtl' : 'ltr'} closeLabel={t.header.close}>
+        <div className="min-h-0 overflow-y-auto px-6 pb-6 pt-5">
+          <SheetTitle className="font-heading text-xl font-bold">{ar ? 'المزيد' : 'More'}</SheetTitle>
+          <SheetDescription className="sr-only">{ar ? 'معلومات المستشفى واللغة والطوارئ' : 'Hospital information, language and emergency contact'}</SheetDescription>
+          <nav className="my-5" aria-label={ar ? 'صفحات إضافية' : 'More pages'}>
+            {moreLinks.map(({ href, label, Icon }) => <Link prefetch={true} key={href} href={href} onClick={() => setOpen(false)} aria-current={isActive(href) ? 'page' : undefined} className="flex min-h-14 items-center gap-3 border-b border-border/60 text-sm font-semibold last:border-0"><Icon size={20} strokeWidth={1.7} className="text-muted-foreground" /><span className="flex-1">{label}</span><ArrowUpRight size={16} className="text-muted-foreground rtl:-rotate-90" /></Link>)}
+          </nav>
+          <div className="flex items-center justify-between gap-4 border-t border-border py-4">
+            <span className="flex items-center gap-2 text-sm text-muted-foreground"><Globe2 size={18} />{t.header.language}</span>
+            <div className="flex gap-1 rounded-lg bg-muted p-1">
+              {locales.map(l => <Link prefetch={true} key={l} href={pathname.replace(/^\/(ar|en)(?=\/|$)/, `/${l}`)} hrefLang={l} aria-current={l === locale ? 'true' : undefined} className={cn('rounded-md px-3 py-2 text-xs font-semibold', l === locale ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground')}>{l === 'ar' ? 'العربية' : 'English'}</Link>)}
+            </div>
+          </div>
+          <EmergencyButton t={t} className="mt-2 w-full justify-center" />
+        </div>
+      </SheetContent>
+    </Sheet>
+    <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} locale={locale} t={t} />
+  </>
 }

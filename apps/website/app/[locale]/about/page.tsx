@@ -166,7 +166,7 @@ export default async function AboutPage({
           <a href={`tel:${site.hotline}`} dir="ltr" className="home-about-cta">{site.hotline}</a>
           <Link href={`/${locale}/doctors`} className="about-cta-secondary">
             {ar ? 'تعرف على أطبائنا' : 'Meet our doctors'}
-            <ArrowUpRight size={17} className="rtl:-scale-x-100" />
+            <ArrowUpRight size={17} className="rtl:-rotate-90" />
           </Link>
         </div>
       </section>

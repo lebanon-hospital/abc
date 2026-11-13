@@ -34,6 +34,7 @@ export function SiteFooter({ locale, t }: { locale: Locale; t: Dictionary }) {
     { href: `${homeHref}/contact`, label: t.nav.contact },
     { href: `${homeHref}/b-home`, label: ar_ ? 'B-Home — الرعاية المنزلية' : 'B-Home' },
     { href: `${homeHref}/b-lite`, label: ar_ ? 'B-Lite — الغذاء الصحي' : 'B-Lite' },
+    { href: `${homeHref}/terms`, label: ar_ ? 'الشروط والأحكام' : 'Terms and conditions' },
     { href: `${homeHref}/privacy`, label: ar_ ? 'سياسة الخصوصية' : 'Privacy' },
     { href: `${homeHref}/appointment-policy`, label: ar_ ? 'سياسة المواعيد' : 'Appointment policy' },
   ]
@@ -83,7 +84,7 @@ export function SiteFooter({ locale, t }: { locale: Locale; t: Dictionary }) {
           <h3 className="mb-4 font-heading text-sm font-bold uppercase tracking-wide text-white">
             {t.footer.quickLinks}
           </h3>
-          <ul className="space-y-2.5">
+          <ul className="grid grid-cols-2 gap-x-4 gap-y-2.5 lg:grid-cols-1">
             {links.map((item) => (
               <li key={item.href}>
                 <Link
