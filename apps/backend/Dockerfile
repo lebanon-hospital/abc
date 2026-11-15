@@ -9,8 +9,9 @@ COPY apps/backend/package.json apps/backend/
 RUN bun install --frozen-lockfile --filter backend
 
 COPY apps/backend/src apps/backend/src
-COPY apps/backend/drizzle.config.ts apps/backend/tsconfig.json ./
+COPY apps/backend/drizzle.config.ts apps/backend/tsconfig.json apps/backend/
 
 EXPOSE 3000
 WORKDIR /repo/apps/backend
-CMD ["bun", "run", "src/index.ts"]
+# Apply pending drizzle migrations (advisory-locked) before serving
+CMD ["sh", "-c", "bun run src/db/migrate.ts && exec bun run src/index.ts"]
