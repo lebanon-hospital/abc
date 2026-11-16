@@ -76,11 +76,12 @@ export function PartnerEditPage() {
       const payload = {
         nameAr: form.nameAr,
         nameEn: form.nameEn,
-        contentAr: form.contentAr || undefined,
-        contentEn: form.contentEn || undefined,
+        // send values as-is (even '') so clearing them persists — backend maps '' to null
+        contentAr: form.contentAr,
+        contentEn: form.contentEn,
         category: form.category,
-        logoUrl: form.logoUrl || undefined,
-        websiteUrl: form.websiteUrl || undefined,
+        logoUrl: form.logoUrl,
+        websiteUrl: form.websiteUrl,
         sortOrder: Number(form.sortOrder) || 0,
         isActive: form.isActive,
       }
