@@ -16,6 +16,7 @@ import bookings from './bookings/routes'
 import content from './content/routes'
 import posts from './posts/routes'
 import postCategories from './post-categories/routes'
+import hero from './hero/routes'
 
 export const app = new OpenAPIHono()
 
@@ -40,6 +41,7 @@ app.route('/bookings', bookings)
 app.route('/content', content)
 app.route('/posts', posts)
 app.route('/post-categories', postCategories)
+app.route('/hero-slides', hero)
 
 export const openApiDocument = {
   openapi: '3.1.0',

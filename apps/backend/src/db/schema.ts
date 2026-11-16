@@ -229,6 +229,25 @@ export const insurancePartners = pgTable(
 export type InsurancePartner = typeof insurancePartners.$inferSelect
 export type NewInsurancePartner = typeof insurancePartners.$inferInsert
 
+export const heroSlides = pgTable(
+  'hero_slides',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    titleAr: text('title_ar').default('').notNull(), // alt text / dashboard label
+    titleEn: text('title_en').default('').notNull(),
+    desktopUrl: text('desktop_url').notNull(), // recommended 1920×1080 (16:9)
+    mobileUrl: text('mobile_url'), // recommended 1080×1920 (9:16); NULL → reuse desktop image
+    sortOrder: integer('sort_order').default(0).notNull(),
+    isActive: boolean('is_active').default(true).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index('hero_slides_sort_idx').on(table.sortOrder)],
+)
+
+export type HeroSlide = typeof heroSlides.$inferSelect
+export type NewHeroSlide = typeof heroSlides.$inferInsert
+
 export const pages = pgTable('pages', {
   id: uuid('id').defaultRandom().primaryKey(),
   slug: text('slug').notNull().unique(), // e.g. privacy, appointment-policy

@@ -14,8 +14,9 @@ import { DraftStatus } from './ui/draft-status'
 import { PhoneInput } from './ui/phone-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
 
-// Temporary photography reused from the Astro prototype; replace with approved ABC images.
-const slides = [
+// Temporary photography reused from the Astro prototype; shown until slides are
+// uploaded from the dashboard (hero_slides table, managed at /hero-slides in the dashboard).
+const defaultSlides = [
   'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=2000&q=80',
   'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=2000&q=80',
   'https://images.unsplash.com/photo-1538108149393-fbbd81895907?auto=format&fit=crop&w=2000&q=80',
@@ -23,9 +24,13 @@ const slides = [
 
 type DeptOption = { slug: string; name: string }
 type DoctorOption = { slug: string; name: string; departmentSlug: string | null; departmentSlugs?: string[] }
+export type HeroSlide = { titleAr: string; titleEn: string; desktopUrl: string; mobileUrl: string | null }
 
-export function HomeHero({ locale, departments = [], doctors = [] }: { locale: Locale; departments?: DeptOption[]; doctors?: DoctorOption[] }) {
+export function HomeHero({ locale, departments = [], doctors = [], slides = [] }: { locale: Locale; departments?: DeptOption[]; doctors?: DoctorOption[]; slides?: HeroSlide[] }) {
   const ar = locale === 'ar'
+  const items = slides.length > 0
+    ? slides.map((s) => ({ src: s.desktopUrl, mobileSrc: s.mobileUrl ?? '', alt: ar ? s.titleAr : s.titleEn }))
+    : defaultSlides.map((src) => ({ src, mobileSrc: '', alt: '' }))
   const [active, setActive] = useState(0)
   const [paused, setPaused] = useState(false)
   const [reducedMotion, setReducedMotion] = useState(true)
@@ -43,6 +48,8 @@ export function HomeHero({ locale, departments = [], doctors = [] }: { locale: L
   const [sent, setSent] = useState(false)
   const [serverError, setServerError] = useState(false)
   const draft = useBookingDraft({name,phone,country,enabled:mobile && !sent})
+  // clamp so a shrinking slide list (e.g. default 3 → 1 uploaded) never points out of range
+  const current = items.length ? active % items.length : 0
 
   useEffect(() => {
     const query = window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -63,13 +70,13 @@ export function HomeHero({ locale, departments = [], doctors = [] }: { locale: L
   useEffect(() => {
     if (paused || reducedMotion || mobile) return
     const timer = window.setInterval(() => {
-      if (!document.hidden) setActive((current) => (current + 1) % slides.length)
+      if (!document.hidden) setActive((current) => (current + 1) % items.length)
     }, 6500)
     return () => window.clearInterval(timer)
-  }, [paused, reducedMotion, mobile])
+  }, [paused, reducedMotion, mobile, items.length])
 
   function selectSlide(index: number) {
-    setActive((index + slides.length) % slides.length)
+    setActive((index + items.length) % items.length)
     setPaused(true)
   }
 
@@ -124,10 +131,14 @@ export function HomeHero({ locale, departments = [], doctors = [] }: { locale: L
   return (
     <section className="home-hero" aria-labelledby="home-hero-heading">
       <div className="home-hero-images" aria-hidden="true">
-        {slides.map((src, index) => (
+        {items.map((item, index) => (
+          // Uploaded slides may include a portrait mobile variant; the browser picks via the media query.
           // External prototype images intentionally use native loading, without a remote optimizer dependency.
           // eslint-disable-next-line @next/next/no-img-element
-          <img key={src} src={src} alt="" className={active === index ? 'is-active' : ''} fetchPriority={index === 0 ? 'high' : 'low'} decoding="async" />
+          <picture key={item.src}>
+            {item.mobileSrc && <source media="(max-width: 800px)" srcSet={item.mobileSrc} />}
+            <img src={item.src} alt={item.alt} className={current === index ? 'is-active' : ''} fetchPriority={index === 0 ? 'high' : 'low'} decoding="async" />
+          </picture>
         ))}
       </div>
       <div className="home-hero-shade" />
@@ -138,8 +149,8 @@ export function HomeHero({ locale, departments = [], doctors = [] }: { locale: L
           <p className="home-hero-description">{ar ? 'رعاية تبدأ بالاستماع إليك. اختر التخصص المناسب، ودعنا نساعدك في الخطوة التالية للاطمئنان على صحتك.' : 'Care that starts with listening. Find the right specialty, and let us help you take the next step toward feeling better.'}</p>
           <BookingButton locale={locale} className="home-hero-call"><span>{ar ? 'احجز موعد' : 'Book an appointment'}</span><ArrowUpRight size={20} className="rtl:-rotate-90" /></BookingButton>
           <div className="home-hero-carousel" role="group" aria-label={ar ? 'صور الخلفية' : 'Background slideshow'}>
-            <span className="home-hero-slide-number" aria-live="off">0{active + 1}<span> / 03</span></span>
-            <div className="home-hero-dots">{slides.map((_, index) => <button type="button" key={index} onClick={() => selectSlide(index)} aria-label={ar ? `عرض الصورة ${index + 1}` : `Show image ${index + 1}`} aria-pressed={active === index}><span className={active === index ? 'is-active' : ''} /></button>)}</div>
+            <span className="home-hero-slide-number" aria-live="off">0{current + 1}<span> / {String(items.length).padStart(2, '0')}</span></span>
+            <div className="home-hero-dots">{items.map((_, index) => <button type="button" key={index} onClick={() => selectSlide(index)} aria-label={ar ? `عرض الصورة ${index + 1}` : `Show image ${index + 1}`} aria-pressed={current === index}><span className={current === index ? 'is-active' : ''} /></button>)}</div>
             <button type="button" className="home-hero-control" onClick={() => selectSlide(active - 1)} aria-label={ar ? 'الصورة السابقة' : 'Previous image'}><ChevronLeft size={17} /></button>
             <button type="button" className="home-hero-control" onClick={() => selectSlide(active + 1)} aria-label={ar ? 'الصورة التالية' : 'Next image'}><ChevronRight size={17} /></button>
           </div>

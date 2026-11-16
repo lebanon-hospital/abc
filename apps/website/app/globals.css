@@ -97,6 +97,7 @@ h1, h2, h3, h4, h5, h6 {
 /* Homepage: photographic hero and compact appointment request preview. */
 .home-hero { position: relative; isolation: isolate; overflow: hidden; background: #202e2b; color: white; }
 .home-hero-images, .home-hero-shade { position: absolute; inset: 0; z-index: -1; }
+.home-hero-images picture { position: absolute; inset: 0; }
 .home-hero-images img { position: absolute; width: 100%; height: 100%; object-fit: cover; object-position: center; opacity: 0; transition: opacity 1.4s ease; }
 .home-hero-images img.is-active { opacity: 1; }
 .home-hero-shade { background: linear-gradient(90deg, rgba(15,30,27,.9), rgba(18,32,29,.69) 47%, rgba(18,32,29,.32)), linear-gradient(0deg,rgba(13,25,23,.7),transparent 50%); }

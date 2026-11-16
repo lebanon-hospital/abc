@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom'
-import { ChevronDown, CircleHelp, Building2, FileText, Handshake, Inbox, LogOut, ScrollText, Stethoscope, LayoutDashboard, Newspaper, Tags, UserRound, Users } from 'lucide-react'
+import { ChevronDown, CircleHelp, Building2, FileText, Handshake, Images, Inbox, LogOut, ScrollText, Stethoscope, LayoutDashboard, Newspaper, Tags, UserRound, Users } from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -44,6 +44,7 @@ const navMain: NavItem[] = [
   { to: '/faqs', labelKey: 'nav.faqs', icon: CircleHelp },
   { to: '/partners', labelKey: 'nav.partners', icon: Handshake },
   { to: '/pages', labelKey: 'nav.pages', icon: FileText },
+  { to: '/hero-slides', labelKey: 'nav.heroSlides', icon: Images, roles: ['admin'] },
   { to: '/contact-submissions', labelKey: 'nav.contactSubmissions', icon: Inbox },
 ]
 
