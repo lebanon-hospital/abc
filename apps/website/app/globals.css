@@ -276,6 +276,14 @@ h1, h2, h3, h4, h5, h6 {
 .prose-hospital {
   line-height: 1.8;
 }
+/* images embedded in pages/posts/departments content from the dashboard editor */
+.prose-hospital img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.75rem;
+  margin: 1.25rem auto;
+}
 .prose-hospital h2 {
   font-size: 1.35rem;
   font-weight: 700;
